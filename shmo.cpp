@@ -37,7 +37,6 @@ int main(int argc,char **argv)
 	raspicam::RaspiCam_Cv Camera;
 	cam_set_up(argc, argv, Camera);
 	
-	//cout<<"Connecting to camera"<<endl;
     if (!Camera.open())
 	{
         cerr<<"Error opening camera"<<endl;
