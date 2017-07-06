@@ -82,7 +82,7 @@ int main(int argc,char **argv)
 		do_mask(src_hsv, mask_o, mid_o, delta_o, crop, "orange");
 		
 		/// Determine contours
-		int area_low = 350;			// smallest (pixel) area that a vehicle may appear as
+		int area_low = 300;			// smallest (pixel) area that a vehicle may appear as
 		int area_high = 650;		// largest (pixel) area that a vehicle may appear as
 		int max_cars = 8;				// maximum number of vehicles
 		int n_cars = 0;				// number of vehicles located
@@ -99,6 +99,8 @@ int main(int argc,char **argv)
 			sprintf(filename, "img_centroids_%03i.png", ii);
 			imwrite(filename, src_ctrs);
 		}
+		
+		cout << endl; // write a newline after each frame's outputs
 	}
 	
 	double time_total = double ( cv::getTickCount() - time_start ) / double ( cv::getTickFrequency() ); // total time in seconds
@@ -210,6 +212,8 @@ int do_contours(Mat src, const Mat mask, int max_cars, int area_low, int area_hi
 // area_low		smallest number of pixels that a vehicle may appear as
 // area_high	largest number of pixels that a vehicle may appear as
 {
+	cout<<"Locating *"<< name << "* cars"<<endl;
+	
 	// Find contours
 	vector<vector<Point> > contours;		// vector for storing contours
 	findContours(mask, contours, RETR_LIST, CHAIN_APPROX_SIMPLE);	// note that contours is modified in this step
@@ -237,18 +241,18 @@ int do_contours(Mat src, const Mat mask, int max_cars, int area_low, int area_hi
 	}
 	
 	// Determine vehicle centroids
-	vector<Moments> mu(idx);			// vector for storing moments of each car-representing contour
-	for (int i = 0; i < idx; i++)
-	{
-		mu[i] = moments(contours[contour_idx[i]], true);	// moment of i-th car-representing contour
-	}
-	
+	vector<Moments> mu(idx);	// vector for storing moments of each car-representing contour
 	vector<Point2f> mc(idx);	// vector for storing centre of mass of each car's contour
+
 	for (int i = 0; i < idx; i++)
 	{
-		mc[i] = Point2f(mu[i].m10 / mu[i].m00, mu[i].m01 / mu[i].m00);
-		cout<< name <<" car "<< i + 1 << " location: "<< endl;
-		cout<< Mat(mc[i]) << endl;
+		mu[i] = moments(contours[contour_idx[i]], true);				// moment of i-th car's contour
+		mc[i] = Point2f(mu[i].m10 / mu[i].m00, mu[i].m01 / mu[i].m00);	// centre of mass of the i-th cat's contour
+		
+		printf("Car %i:\n", i + 1);
+		printf("  area (pixels):	%5.1f\n", contour_areas[contour_idx[i]]);
+		printf("  location (x,y):	(%4.1f, %4.1f)\n", 640 - mc[i].x, 480 - mc[i].y);
+		
 		circle(src_ctrs, mc[i], 3, Scalar(0, 0, 255), -1); 		// draw centroids on source image
 	}
 	
