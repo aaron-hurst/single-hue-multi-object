@@ -28,7 +28,7 @@ using namespace cv;
 void cam_set_up(int argc, char **argv, raspicam::RaspiCam_Cv &Camera);
 float get_param_val(string param, int argc, char **argv, float default_value);
 void do_mask(Mat hsv, Mat mask, int mid_hue, int delta, int crop, string name);
-void do_contours(Mat src, const Mat mask, int n_cars, int area_low, int area_high, string name, int frame_number);
+int do_contours(Mat src, const Mat mask, int max_cars, int area_low, int area_high, string name, int frame_number, Mat src_ctrs);
 
 
 int main(int argc,char **argv)
@@ -45,9 +45,17 @@ int main(int argc,char **argv)
 	sleep(2);	// sleep required to wait for camera to "warm up"
 	
     Mat src;
-	int n_frames = atoi(argv[1]);
-	double time0 = cv::getTickCount();
+	int n_frames = atoi(argv[1]);		// specify number of frames to process
+	int save_images = atoi(argv[2]);	// specify 1 to save tracking images
 	
+	if (save_images == 1)
+		cout<<"Output images will be saved with vehicle centroids shown"<<endl;
+	else
+		cout<<"No images will be saved"<<endl;
+	
+	double time_start = cv::getTickCount();
+	
+	// Run tracking
 	for (int ii = 0; ii < n_frames; ii++)
 	{
 		cout<<"FRAME "<< ii + 1<< endl;
@@ -76,16 +84,29 @@ int main(int argc,char **argv)
 		/// Determine contours
 		int area_low = 350;			// smallest (pixel) area that a vehicle may appear as
 		int area_high = 650;		// largest (pixel) area that a vehicle may appear as
-		int n_cars = 8;				// maximum number of vehicles
+		int max_cars = 8;				// maximum number of vehicles
+		int n_cars = 0;				// number of vehicles located
 		
-		do_contours(src, mask_r, n_cars, area_low, area_high, "red", ii);
-		do_contours(src, mask_o, n_cars, area_low, area_high, "orange", ii);
+		Mat src_ctrs = Mat::zeros(src.rows, src.cols, CV_8UC3);		// duplicate source image for printing
+		src.copyTo(src_ctrs);
+		
+		n_cars += do_contours(src, mask_r, max_cars, area_low, area_high, "red", ii, src_ctrs);
+		n_cars += do_contours(src, mask_o, max_cars, area_low, area_high, "orange", ii, src_ctrs);
+		
+		if (save_images == 1)
+		{
+			char filename [25];
+			sprintf(filename, "img_centroids_%03i.png", ii);
+			imwrite(filename, src_ctrs);
+		}
 	}
 	
-	double secondsElapsed = double ( cv::getTickCount() - time0 ) / double ( cv::getTickFrequency() ); // program running time in seconds
-	cout<< secondsElapsed<<" seconds runtime"<<endl;
-	cout<< secondsElapsed/n_frames << " seconds per frame"<<endl;
-	cout<< n_frames/secondsElapsed << "fps"<<endl;
+	double time_total = double ( cv::getTickCount() - time_start ) / double ( cv::getTickFrequency() ); // total time in seconds
+	
+	cout << "Total time: " << time_total<<  " seconds"<<endl;
+	cout << "Total frames: " << n_frames<<endl;
+    cout << "Average processing speed: " << time_total/n_frames*1000 <<  " ms/frame (" << n_frames/time_total<< " fps)" << std::endl;
+	
 	
 	Camera.release();
 	
@@ -181,9 +202,11 @@ void do_mask(Mat hsv, Mat mask, int mid_hue, int delta, int crop, string name)
 }
 
 
-void do_contours(Mat src, const Mat mask, int n_cars, int area_low, int area_high, string name, int frame_number)
+int do_contours(Mat src, const Mat mask, int max_cars, int area_low, int area_high, string name, int frame_number, Mat src_ctrs)
 // This function identifies wehicles in a given mask and determines their centroids
-// n_cars		maximum number of cars expected in the image
+// It returns the humber of cars found
+//
+// max_cars		maximum number of cars that could be found
 // area_low		smallest number of pixels that a vehicle may appear as
 // area_high	largest number of pixels that a vehicle may appear as
 {
@@ -200,14 +223,15 @@ void do_contours(Mat src, const Mat mask, int n_cars, int area_low, int area_hig
 	}
 	
 	// Check areas against known vehicle size and hence locate vehicles
-	int contour_idx [n_cars];	// array for storing indices of contours that correspond to vehicles
+	int contour_idx [max_cars];	// array for storing indices of contours that correspond to vehicles
 	int idx = 0;				// counter
+	
 	for (int i = 0; i < n_contours; i++)		// scan through contour areas
 	{
 		if (contour_areas[i] > area_low && contour_areas[i] < area_high) 	// compare area to low and high thresholds
 		{
 			contour_idx[idx] = i;				// if within thresholds, record contour index
-			cout<<"Car "<< idx + 1 << " (" << name << ") area: " << contour_areas[i] <<endl;
+			cout<< name <<" car "<< idx + 1 << " area: " << contour_areas[i] <<endl;
 			idx++;								// increment index of contour_idx array
 		}
 	}
@@ -219,21 +243,14 @@ void do_contours(Mat src, const Mat mask, int n_cars, int area_low, int area_hig
 		mu[i] = moments(contours[contour_idx[i]], true);	// moment of i-th car-representing contour
 	}
 	
-	Mat src2 = Mat::zeros(src.rows, src.cols, CV_8UC3);		// duplicate source image for printing
-	src.copyTo(src2);
-	
 	vector<Point2f> mc(idx);	// vector for storing centre of mass of each car's contour
 	for (int i = 0; i < idx; i++)
 	{
 		mc[i] = Point2f(mu[i].m10 / mu[i].m00, mu[i].m01 / mu[i].m00);
-		cout<<"Car "<< i + 1 << " (" << name << ") location: "<< endl;
+		cout<< name <<" car "<< i + 1 << " location: "<< endl;
 		cout<< Mat(mc[i]) << endl;
-		circle(src2, mc[i], 3, Scalar(0, 0, 255), -1); 	// draw centroids on source image
+		circle(src_ctrs, mc[i], 3, Scalar(0, 0, 255), -1); 		// draw centroids on source image
 	}
 	
-	char filename [25];
-	sprintf(filename, "img_centroids_%s_%i.png", name.c_str(), frame_number);
-	imwrite(filename, src2);
-	
-	return;
+	return (idx + 1);
 }

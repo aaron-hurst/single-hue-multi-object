@@ -15,5 +15,7 @@ This is achieved my locating matching hues in images of the area and analysing m
 * RaspiCam - tested using version 0.1.6 (http://www.uco.es/investiga/grupos/ava/node/40), used for interfacing the Raspberry Pi camera
 * mmal (installed with Raspian by default)
 
-Compile using the provided makefile.  
+Compile using the provided makefile. Note the linked directory - you might need to change this if working on a different device.
+
+In future (after I learn how to use it) the build process will be moved to CMake, which will hopefully check for the presence and version of the above dependencies.
   
