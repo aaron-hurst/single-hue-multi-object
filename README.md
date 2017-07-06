@@ -7,7 +7,7 @@ Object tracking algorithm for multiple single-hue objects
 
 **Organisation**: The Univeristy of Western Australia
 
-**Students**: Aaron Hurst, Ray Barkey & Ridge Shrubsall
+**Students**: Aaron Hurst, Ray Barker & Ridge Shrubsall
 
 This software is designed to track one red and one orange ZenWheels car within the testbed for the above project.
 This is achieved my locating matching hues in images of the area and analysing masks obtained from this.
