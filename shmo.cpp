@@ -30,6 +30,7 @@ int main(int argc,char **argv)
 	Mat src;
 	int n_frames = atoi(argv[1]);		// specify number of frames to process
 	int save_images = atoi(argv[2]);	// specify 1 to save tracking images
+	int time_new, time_old;
 	
 	if (save_images == 1)
 		cout<<"Output images will be saved with vehicle centroids shown"<<endl;
@@ -43,6 +44,7 @@ int main(int argc,char **argv)
 	car_1.delta 	= 4;
 	car_1.size_min	= 300;
 	car_1.size_max	= 650;
+	car_1.area_old  = 0.0;
 	
 	Car car_2;
 	car_2.name		= "orange";
@@ -50,6 +52,9 @@ int main(int argc,char **argv)
 	car_2.delta 	= 4;
 	car_2.size_min	= 300;
 	car_2.size_max	= 650;
+	car_2.area_old  = 0.0;
+	
+	int crop = 15;		// number of pixels to crop off each side (remove physical model border from analysis)
 	
 	
 	/// Camera setup
@@ -63,15 +68,16 @@ int main(int argc,char **argv)
 	
 		
 	/// Run tracking
-	double time_start = cv::getTickCount();
-	
+	double time_start = cv::getTickCount();	
 	for (int ii = 0; ii < n_frames; ii++)
 	{
-		cout<<"FRAME "<< ii + 1<< endl;
+		cout << endl; // write a newline before each frame's outputs
+		cout<<"~~~~~~~~~~~ FRAME "<< ii + 1<<" ~~~~~~~~~~~"<<endl;
 		
 		/// Get image	
 		Camera.grab();
 		Camera.retrieve(src);
+		time_new = cv::getTickCount();
 		//imshow("Source", src);
 		
 		/// Convert to HSV
@@ -81,18 +87,20 @@ int main(int argc,char **argv)
 		/// Generate masks of matching hues.
 		// Note: cars are red, but by doing a BGR2HSV conversion (rather than RGB2HSV) they appear blue
 		Mat mask_1 = Mat::zeros(src.rows, src.cols, CV_8UC1);
-		Mat mask_2 = Mat::zeros(src.rows, src.cols, CV_8UC1);
-		int crop = 15;		// number of pixels to crop off each side (remove physical model border from analysis)
-		
+		Mat mask_2 = Mat::zeros(src.rows, src.cols, CV_8UC1);		
 		do_mask(src_hsv, mask_1, car_1.hue, car_1.delta, crop, car_1.name);
 		do_mask(src_hsv, mask_2, car_2.hue, car_2.delta, crop, car_2.name);
 		
-		/// Determine contours
+		/// Locate cars
 		Mat src_ctrs = Mat::zeros(src.rows, src.cols, CV_8UC3);		// duplicate source image for printing
 		src.copyTo(src_ctrs);
 		
 		find_car(mask_1, car_1);
 		find_car(mask_2, car_2);
+		
+		/// Calculate velocity, report outputs
+		do_outputs(car_1, time_new, time_old);
+		do_outputs(car_2, time_new, time_old);
 		
 		if (save_images == 1)
 		{
@@ -101,14 +109,18 @@ int main(int argc,char **argv)
 			imwrite(filename, src_ctrs);
 		}
 		
-		cout << endl; // write a newline after each frame's outputs
+		// Update data
+		time_old = time_new;
+		new_2_old(car_1);
+		new_2_old(car_2);
 	}
 	
 	double time_total = double ( cv::getTickCount() - time_start ) / double ( cv::getTickFrequency() ); // total time in seconds
 	
-	cout << "Total time: " << time_total<<  " seconds"<<endl;
+	cout << endl;
+	cout << "Total time: " << time_total<<" seconds"<<endl;
 	cout << "Total frames: " << n_frames<<endl;
-    cout << "Average processing speed: " << time_total/n_frames*1000 <<  " ms/frame (" << n_frames/time_total<< " fps)" << std::endl;
+    cout << "Average processing speed: " << time_total/n_frames*1000 << " ms/frame (" << n_frames/time_total<< " fps)" << std::endl;
 	
 	
 	Camera.release();
