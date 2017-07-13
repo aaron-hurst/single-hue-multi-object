@@ -6,6 +6,14 @@
 #include <unistd.h>
 #include "shmo.hpp"
 
+#include "rapidjson/document.h"
+#include "rapidjson/writer.h"
+#include "rapidjson/stringbuffer.h"
+#include "rapidjson/filewritestream.h"
+
+#include <cstdio>	// for fopen?
+
+
 // OpenCV and camera interfacing libraries
 #include "/home/pi/raspicam-0.1.6/src/raspicam_cv.h"
 #include "opencv2/imgproc/imgproc.hpp"
@@ -15,6 +23,8 @@
 // Namespaces
 using namespace std;
 using namespace cv;
+using namespace rapidjson;
+
 
 // Definitions
 
@@ -108,6 +118,58 @@ int main(int argc,char **argv)
 			sprintf(filename, "img_centroids_%03i.png", ii);
 			imwrite(filename, src_ctrs);
 		}
+		
+		
+		
+		
+		
+		
+		rapidjson::Document document;
+		
+		// define the document as an object rather than an array
+		document.SetObject();
+		
+		// create a rapidjson array type with similar syntax to std::vector
+		rapidjson::Value position(rapidjson::kArrayType);
+		rapidjson::Value velocity(rapidjson::kArrayType);
+		
+		// must pass an allocator when the object may need to allocate memory
+		rapidjson::Document::AllocatorType& allocator = document.GetAllocator();
+		
+		// chain methods as rapidjson provides a fluent interface when modifying its objects
+		position.PushBack((int)(car_1.position_new[0]+0.5), allocator).PushBack((int)(car_1.position_new[1]+0.5), allocator);
+		velocity.PushBack((int)(car_1.velocity_new[0]+0.5), allocator).PushBack((int)(car_1.velocity_new[1]+0.5), allocator);
+		
+		//document.AddMember("MAC Address", car_1.mac_address, allocator);
+		document.AddMember("Type", "Car", allocator);
+		document.AddMember("Position", position, allocator);
+		document.AddMember("Velocity", velocity, allocator);
+		document.AddMember("Orientation", car_1.orientation_new, allocator);
+		//variable to increment for number of frames not found?
+		//other veriables?
+		 
+		StringBuffer strbuf;
+		Writer<StringBuffer> writer(strbuf);
+		document.Accept(writer);
+
+		cout << strbuf.GetString() << endl;
+		
+		FILE* fp = fopen("output.json", "w"); // non-Windows use "w"
+		char writeBuffer[65536];
+		FileWriteStream os(fp, writeBuffer, sizeof(writeBuffer));
+		Writer<FileWriteStream> fwriter(os);
+		document.Accept(fwriter);
+		fclose(fp);
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
 		
 		// Update data
 		time_old = time_new;
