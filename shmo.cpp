@@ -66,6 +66,16 @@ int main(int argc,char **argv)
 	car_2.size_max	= 650;
 	car_2.area_old  = 0.0;
 	
+	
+	
+	
+	vector<Car> cars_all;
+	cars_all.push_back(car_1);
+	cars_all.push_back(car_2);
+	
+	
+	
+	
 	int crop = 15;		// number of pixels to crop off each side (remove physical model border from analysis)
 	
 	
@@ -100,19 +110,19 @@ int main(int argc,char **argv)
 		// Note: cars are red, but by doing a BGR2HSV conversion (rather than RGB2HSV) they appear blue
 		Mat mask_1 = Mat::zeros(src.rows, src.cols, CV_8UC1);
 		Mat mask_2 = Mat::zeros(src.rows, src.cols, CV_8UC1);		
-		do_mask(src_hsv, mask_1, car_1.hue, car_1.delta, crop, car_1.name);
-		do_mask(src_hsv, mask_2, car_2.hue, car_2.delta, crop, car_2.name);
+		do_mask(src_hsv, mask_1, cars_all[0].hue, cars_all[0].delta, crop, cars_all[0].name);
+		do_mask(src_hsv, mask_2, cars_all[1].hue, cars_all[1].delta, crop, cars_all[1].name);
 		
 		/// Locate cars
 		Mat src_ctrs = Mat::zeros(src.rows, src.cols, CV_8UC3);		// duplicate source image for printing
 		src.copyTo(src_ctrs);
 		
-		find_car(mask_1, car_1);
-		find_car(mask_2, car_2);
+		find_car(mask_1, cars_all[0]);
+		find_car(mask_2, cars_all[1]);
 		
 		/// Calculate velocity, report outputs
-		do_outputs(car_1, time_new, time_old);
-		do_outputs(car_2, time_new, time_old);
+		do_outputs(cars_all[0], time_new, time_old);
+		do_outputs(cars_all[1], time_new, time_old);
 				
 		if (save_images == 1)
 		{
@@ -125,33 +135,41 @@ int main(int argc,char **argv)
 		
 		
 		
+		// Declare RapidJSON document and define the document as an object rather than an array
 		rapidjson::Document document;
-		document.SetObject();	// define the document as an object rather than an array
+		document.SetObject();
 		
-		// create a rapidjson array type with similar syntax to std::vector
-		rapidjson::Value position(rapidjson::kArrayType);
-		rapidjson::Value velocity(rapidjson::kArrayType);
-		
-		// must pass an allocator when the object may need to allocate memory
+		// Get an "alloctor" - must pass an allocator when the object may need to allocate memory
 		rapidjson::Document::AllocatorType& allocator = document.GetAllocator();
 		
-		// chain methods as rapidjson provides a fluent interface when modifying its objects
-		position.PushBack((int)(car_1.position_new[0]+0.5), allocator).PushBack((int)(car_1.position_new[1]+0.5), allocator);
-		velocity.PushBack((int)(car_1.velocity_new[0]+0.5), allocator).PushBack((int)(car_1.velocity_new[1]+0.5), allocator);
+		// Create a rapidjson array for storing data (this type has similar syntax to std::vector)
+		//rapidjson::Value data(rapidjson::kArrayType);
 		
-		// Create MAC Address string
-		Value MAC_Address;
-		char buffer[13];
-		int len = sprintf(buffer, "%s", car_1.mac_add.c_str());
-		MAC_Address.SetString(buffer, len, allocator);
-		
-		// Write information to JSON document object
-		document.AddMember("MAC_Address", MAC_Address, allocator);
-		document.AddMember("Type", "Car", allocator);
-		document.AddMember("Position", position, allocator);
-		document.AddMember("Velocity", velocity, allocator);
-		document.AddMember("Orientation", car_1.orientation_new, allocator);
-		//other veriables?
+		// Iterate through each car, populating data and MAC address and sending this to the rapidjson document
+		for (int i = 0; i < cars_all.size(); i++)		
+		{
+			// Declare rapidjson array for storing data (this type has similar syntax to std::vector)
+			rapidjson::Value data(rapidjson::kArrayType);
+			
+			// Populate data rapidjson array
+			data.PushBack(1, allocator);										// physical object type
+			data.PushBack((int)(cars_all[i].position_new[0]+0.5), allocator);	// car position, x-component
+			data.PushBack((int)(cars_all[i].position_new[1]+0.5), allocator);	// car position, y-component
+			data.PushBack((int)(cars_all[i].velocity_new[0]+0.5), allocator);	// car velocity, x-component
+			data.PushBack((int)(cars_all[i].velocity_new[1]+0.5), allocator);	// car velocity, y-component
+			data.PushBack(cars_all[i].orientation_new, allocator);				// car orientation
+			data.PushBack(0, allocator);										// spare
+			data.PushBack(0, allocator);										// spare
+			
+			// Create MAC Address string
+			Value MAC_Address;
+			char buffer[13];
+			int len = sprintf(buffer, "%s", cars_all[i].mac_add.c_str());
+			MAC_Address.SetString(buffer, len, allocator);
+			
+			// Add information to rapidjson document (an object)
+			document.AddMember(MAC_Address, data, allocator);
+		}
 		
 		// Write to output file
 		FILE* fp = fopen("output.json", "w");		// open in write mode
@@ -166,15 +184,10 @@ int main(int argc,char **argv)
 		
 		
 		
-		
-		
-		
-		
-		
 		// Update data
 		time_old = time_new;
-		new_2_old(car_1);
-		new_2_old(car_2);
+		new_2_old(cars_all[0]);
+		new_2_old(cars_all[1]);
 	}
 	
 	double time_total = double ( cv::getTickCount() - time_start ) / double ( cv::getTickFrequency() ); // total time in seconds
