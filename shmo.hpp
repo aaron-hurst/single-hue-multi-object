@@ -40,7 +40,19 @@ struct Car {
 	float velocity_new[2];
 	int orientation_old;		// measured orientation
 	int orientation_new;
+	
+	// Member function declarations
+	void px_to_mm(float alpha, const int origin[]);
 };
+
+// Member function definitions
+void Car::px_to_mm(float alpha, const int origin[])
+{
+	position_new[0] = alpha*(position_new[0] - origin[0]);
+	position_new[1] = alpha*(position_new[1] - origin[1]);
+	velocity_new[0] = alpha*velocity_new[0];
+	velocity_new[1] = alpha*velocity_new[1];
+}
 
 
 

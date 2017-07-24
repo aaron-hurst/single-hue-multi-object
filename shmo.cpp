@@ -4,6 +4,7 @@
 #include <sstream>
 #include <ctime>
 #include <unistd.h>
+#include <math.h>		// for "round"
 #include "shmo.hpp"
 
 #include "rapidjson/document.h"
@@ -66,9 +67,6 @@ int main(int argc,char **argv)
 	car_2.size_max	= 650;
 	car_2.area_old  = 0.0;
 	
-	
-	
-	
 	vector<Car> cars_all;
 	cars_all.push_back(car_1);
 	cars_all.push_back(car_2);
@@ -76,7 +74,9 @@ int main(int argc,char **argv)
 	
 	
 	
-	int crop = 15;		// number of pixels to crop off each side (remove physical model border from analysis)
+	int crop = 15;				// number of pixels to crop off each side (remove physical model border from analysis)
+	int origin[2] = {0, 0};		// pixel location coordinate system origin
+	float alpha = 1.9355;		// conversion factor between pixels and mm (i.e. length of each pixel in mm) averaged over whole frame
 	
 	
 	/// Camera setup
@@ -120,10 +120,14 @@ int main(int argc,char **argv)
 		find_car(mask_1, cars_all[0]);
 		find_car(mask_2, cars_all[1]);
 		
+		/// Conversion to mm
+		cars_all[0].px_to_mm(alpha, origin);
+		cars_all[1].px_to_mm(alpha, origin);
+		
 		/// Calculate velocity, report outputs
 		do_outputs(cars_all[0], time_new, time_old);
 		do_outputs(cars_all[1], time_new, time_old);
-				
+		
 		if (save_images == 1)
 		{
 			char filename [25];
@@ -153,10 +157,10 @@ int main(int argc,char **argv)
 			
 			// Populate data rapidjson array
 			data.PushBack(1, allocator);										// physical object type
-			data.PushBack((int)(cars_all[i].position_new[0]+0.5), allocator);	// car position, x-component
-			data.PushBack((int)(cars_all[i].position_new[1]+0.5), allocator);	// car position, y-component
-			data.PushBack((int)(cars_all[i].velocity_new[0]+0.5), allocator);	// car velocity, x-component
-			data.PushBack((int)(cars_all[i].velocity_new[1]+0.5), allocator);	// car velocity, y-component
+			data.PushBack(round(cars_all[i].position_new[0]), allocator);	// car position, x-component
+			data.PushBack(round(cars_all[i].position_new[1]), allocator);	// car position, y-component
+			data.PushBack(round(cars_all[i].velocity_new[0]), allocator);	// car velocity, x-component
+			data.PushBack(round(cars_all[i].velocity_new[1]), allocator);	// car velocity, y-component
 			data.PushBack(cars_all[i].orientation_new, allocator);				// car orientation
 			data.PushBack(0, allocator);										// spare
 			data.PushBack(0, allocator);										// spare

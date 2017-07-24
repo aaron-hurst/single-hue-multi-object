@@ -21,6 +21,7 @@ This is achieved my locating matching hues in images of the area and analysing m
 **Compile** using the provided makefile. Note the linked directory - you might need to change this if working on a different device. In future (after I learn how to use it) the build process will be moved to CMake. This will hopefully check for the presence and version of the above dependencies.
 
 **Run** by specifying two command line arguments:
+
 ./shmo <number of frames to run for> <whether to save source images, 1 or 0>
 
 **Outputs** are printed to the console and also saved to a file output.json in the form of a JSON object.
