@@ -50,6 +50,7 @@ int main(int argc,char **argv)
 	
 	Car car_1;
 	car_1.name		= "red";
+	car_1.mac_add	= "ABCDEFGHIJK1";
 	car_1.hue 		= 123;
 	car_1.delta 	= 4;
 	car_1.size_min	= 300;
@@ -58,6 +59,7 @@ int main(int argc,char **argv)
 	
 	Car car_2;
 	car_2.name		= "orange";
+	car_2.mac_add	= "ABCDEFGHIJK2";
 	car_2.hue 		= 115;
 	car_2.delta 	= 4;
 	car_2.size_min	= 300;
@@ -111,7 +113,7 @@ int main(int argc,char **argv)
 		/// Calculate velocity, report outputs
 		do_outputs(car_1, time_new, time_old);
 		do_outputs(car_2, time_new, time_old);
-		
+				
 		if (save_images == 1)
 		{
 			char filename [25];
@@ -123,11 +125,8 @@ int main(int argc,char **argv)
 		
 		
 		
-		
 		rapidjson::Document document;
-		
-		// define the document as an object rather than an array
-		document.SetObject();
+		document.SetObject();	// define the document as an object rather than an array
 		
 		// create a rapidjson array type with similar syntax to std::vector
 		rapidjson::Value position(rapidjson::kArrayType);
@@ -140,21 +139,22 @@ int main(int argc,char **argv)
 		position.PushBack((int)(car_1.position_new[0]+0.5), allocator).PushBack((int)(car_1.position_new[1]+0.5), allocator);
 		velocity.PushBack((int)(car_1.velocity_new[0]+0.5), allocator).PushBack((int)(car_1.velocity_new[1]+0.5), allocator);
 		
-		//document.AddMember("MAC Address", car_1.mac_address, allocator);
+		// Create MAC Address string
+		Value MAC_Address;
+		char buffer[13];
+		int len = sprintf(buffer, "%s", car_1.mac_add.c_str());
+		MAC_Address.SetString(buffer, len, allocator);
+		
+		// Write information to JSON document object
+		document.AddMember("MAC_Address", MAC_Address, allocator);
 		document.AddMember("Type", "Car", allocator);
 		document.AddMember("Position", position, allocator);
 		document.AddMember("Velocity", velocity, allocator);
 		document.AddMember("Orientation", car_1.orientation_new, allocator);
-		//variable to increment for number of frames not found?
 		//other veriables?
-		 
-		StringBuffer strbuf;
-		Writer<StringBuffer> writer(strbuf);
-		document.Accept(writer);
-
-		cout << strbuf.GetString() << endl;
 		
-		FILE* fp = fopen("output.json", "w"); // non-Windows use "w"
+		// Write to output file
+		FILE* fp = fopen("output.json", "w");		// open in write mode
 		char writeBuffer[65536];
 		FileWriteStream os(fp, writeBuffer, sizeof(writeBuffer));
 		Writer<FileWriteStream> fwriter(os);

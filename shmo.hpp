@@ -23,7 +23,7 @@ using namespace cv;
 // Car object structure
 struct Car {
 	string name;				// car name, usually its colour
-	char mac_address[13];		// 12 character string for MAC Address
+	string mac_add;				// 12 character string for MAC Address
 	
 	// Physical characteristics
 	int hue;					// colour of car
@@ -107,6 +107,14 @@ void find_car(const Mat mask, Car &car)
 	findContours(mask, contours, RETR_LIST, CHAIN_APPROX_SIMPLE);	// note that contours is modified in this step
 	int n_contours = contours.size();	// number of contours
 	
+	if (n_contours < 1)
+	{
+		car.position_new[0] = -1;
+		car.position_new[1] = -1;
+		car.area_new = -1;
+		return;
+	}
+	
 	// Contour areas
 	float contour_areas [n_contours];
 	for (int i = 0; i < n_contours; i++)
@@ -162,7 +170,7 @@ void do_outputs(Car &car, double time_new, double time_old)
 		return;
 	} else if (car.area_old < 1) {
 		// No old data, report zero velocity
-		cout<<"WARNING: previous instant has no data"<<endl;
+		cout<<"WARNING: previous instant has no data ("<< car.name <<" car)"<<endl;
 		car.velocity_new[0] = 0.0;
 		car.velocity_new[1] = 0.0;
 	} else {
