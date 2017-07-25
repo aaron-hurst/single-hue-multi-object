@@ -27,29 +27,27 @@ using namespace cv;
 using namespace rapidjson;
 
 
-// Definitions
-
-
-// Function declarations
-
-
-
-
-
 int main(int argc,char **argv)
 {
 	Mat src;
 	int n_frames = atoi(argv[1]);		// specify number of frames to process
 	int save_images = atoi(argv[2]);	// specify 1 to save tracking images
-	int time_new, time_old;
+	double time_new, time_old;
 	
-	if (save_images == 0) { cout<<"No images will be saved"<<endl; }	
+	if (save_images == 0) {
+		cout<<"No images will be saved"<<endl;
+	}
+	
+	FILE * log_file;
+	log_file = fopen("data.log","w");	// clear output data log file
+	fprintf(log_file,"Data formatted as: Time | x  y  v_x  v_y  theta | ...\n\n");
+	fclose(log_file);
 	
 	/// Camera setup
 	raspicam::RaspiCam_Cv Camera;
 	cam_setup(argc, argv, Camera);
-	if (!Camera.open())		// open camera
-	{
+	if (!Camera.open()) {
+		// open camera
         cerr<<"Error opening camera"<<endl;
         return -1;
     }
@@ -102,9 +100,9 @@ int main(int argc,char **argv)
 	
 	
 	/// Run tracking
-	double time_start = cv::getTickCount();	
-	for (int ii = 0; ii < n_frames; ii++)
-	{
+	double time_start = cv::getTickCount();
+	
+	for (int ii = 0; ii < n_frames; ii++) {
 		cout << endl; // write a newline before each frame's outputs
 		cout<<"~~~~~~~~~~~ FRAME "<< ii + 1<<" ~~~~~~~~~~~"<<endl;
 		
@@ -155,18 +153,17 @@ int main(int argc,char **argv)
 		//rapidjson::Value data(rapidjson::kArrayType);
 		
 		// Iterate through each car, populating data and MAC address and sending this to the rapidjson document
-		for (int i = 0; i < cars_all.size(); i++)		
-		{
+		for (int i = 0; i < cars_all.size(); i++) {
 			// Declare rapidjson array for storing data (this type has similar syntax to std::vector)
 			rapidjson::Value data(rapidjson::kArrayType);
 			
 			// Populate data rapidjson array
 			data.PushBack(1, allocator);										// physical object type
-			data.PushBack(round(cars_all[i].position_new[0]), allocator);	// car position, x-component
-			data.PushBack(round(cars_all[i].position_new[1]), allocator);	// car position, y-component
-			data.PushBack(round(cars_all[i].velocity_new[0]), allocator);	// car velocity, x-component
-			data.PushBack(round(cars_all[i].velocity_new[1]), allocator);	// car velocity, y-component
-			data.PushBack(cars_all[i].orientation_new, allocator);				// car orientation
+			data.PushBack((int)round(cars_all[i].position_new[0]), allocator);	// car position, x-component
+			data.PushBack((int)round(cars_all[i].position_new[1]), allocator);	// car position, y-component
+			data.PushBack((int)round(cars_all[i].velocity_new[0]), allocator);	// car velocity, x-component
+			data.PushBack((int)round(cars_all[i].velocity_new[1]), allocator);	// car velocity, y-component
+			data.PushBack((int)round(cars_all[i].orientation_new), allocator);				// car orientation
 			data.PushBack(0, allocator);										// spare
 			data.PushBack(0, allocator);										// spare
 			
@@ -189,9 +186,22 @@ int main(int argc,char **argv)
 		fclose(fp);
 		
 		
-		
-		
-		
+		/// Save output to a log file
+		FILE * log_file;
+		log_file = fopen("data.log","a");	// append mode
+		fprintf(log_file, "%7.3f  |", (time_new - time_start)/(cv::getTickFrequency()));	// time (since program start)
+		// Add data for each car
+		for (int jj = 0; jj < cars_all.size(); jj++) {
+			fprintf(log_file, "  %6.1f", cars_all[jj].position_new[0]);
+			fprintf(log_file, "  %6.1f", cars_all[jj].position_new[1]);
+			fprintf(log_file, "  %5.1f", cars_all[jj].velocity_new[0]);
+			fprintf(log_file, "  %5.1f", cars_all[jj].velocity_new[1]);
+			fprintf(log_file, "  %4.1f", cars_all[jj].orientation_new);
+			fprintf(log_file, "  |");
+		}
+		fprintf(log_file, "\n");
+		fclose(log_file);
+
 		
 		// Update data
 		time_old = time_new;

@@ -57,7 +57,6 @@ void Car::px_to_mm(float alpha, const int origin[])
 }
 
 
-
 void cam_setup(int argc, char **argv, raspicam::RaspiCam_Cv &Camera)
 // Read desired image width if provided and perform camera set up operations
 {
@@ -195,8 +194,8 @@ void do_outputs(Car &car, double time_new, double time_old)
 	
 	cout<<"Car: "<< car.name <<endl;
 	printf("  area:		%5.1f		pixels\n", car.area_new);
-	printf("  location:	(%4.1f, %4.1f)	mm\n", car.position_new[0], car.position_new[1]);
-	printf("  velocity:	(%4.1f, %4.1f)	mm/s\n", car.velocity_new[0], car.velocity_new[1]);
+	printf("  location:	(%5.1f, %5.1f)	mm\n", car.position_new[0], car.position_new[1]);
+	printf("  velocity:	(%5.1f, %5.1f)	mm/s\n", car.velocity_new[0], car.velocity_new[1]);
 	//printf("  orientation (degrees):	%i\n", car.orientation_new);
 }
 
