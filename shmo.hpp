@@ -47,16 +47,18 @@ struct Car {
 
 // Member function definitions
 void Car::px_to_mm(float alpha, const int origin[])
+// Convert position and velocity measurements from pixel values to mm from the coordinate system origin
 {
 	position_new[0] = alpha*(position_new[0] - origin[0]);
 	position_new[1] = alpha*(position_new[1] - origin[1]);
 	velocity_new[0] = alpha*velocity_new[0];
 	velocity_new[1] = alpha*velocity_new[1];
+	return;
 }
 
 
 
-void cam_set_up(int argc, char **argv, raspicam::RaspiCam_Cv &Camera)
+void cam_setup(int argc, char **argv, raspicam::RaspiCam_Cv &Camera)
 // Read desired image width if provided and perform camera set up operations
 {
 	// Set frame width and height, brightness (?), contrast, saturation and gain (ISO)
@@ -68,7 +70,6 @@ void cam_set_up(int argc, char **argv, raspicam::RaspiCam_Cv &Camera)
     Camera.set (CV_CAP_PROP_SATURATION, IMG_SATURATION);
     Camera.set (CV_CAP_PROP_GAIN, IMG_GAIN);
 	Camera.set (CV_CAP_PROP_EXPOSURE, IMG_SHUTTER_SPEED);
-	
 	return;
 }
 
@@ -79,10 +80,10 @@ void do_mask(Mat hsv, Mat mask, int mid_hue, int delta, int crop, string name)
 // mid_hue 	is the middle (expected peak) hue value associated with the desired object
 // delta 	is the expected range either side of the peak value that should be included
 // crop		is number of pixels that should be removed from each edge (to ignore the wooden frame border)
+// name		chosen identifier for each car
 {
 	// Initial hue matching operation
 	inRange(hsv, Scalar(mid_hue - delta, 40, 40), Scalar(mid_hue + delta, 255, 255), mask);
-	//imshow("Initial mask", mask);
 	
 	// Cropping mask
 	Mat mask_crop = Mat::zeros(hsv.rows, hsv.cols, CV_8UC1);	// declare mask used to eliminate table borders
@@ -94,14 +95,8 @@ void do_mask(Mat hsv, Mat mask, int mid_hue, int delta, int crop, string name)
 	// Apply dilation to remove holes and smooth out edges
 	int dilation_iterations = 1;	// number of iterations to compute
 	int dilation_size = 3;			// size of rectangular kernel
-	Mat element = getStructuringElement(MORPH_RECT, Size( dilation_size, dilation_size ), Point( -1, -1));	// dilation kernel element
-	
+	Mat element = getStructuringElement(MORPH_RECT, Size(dilation_size, dilation_size), Point(-1, -1));		// dilation kernel element
 	dilate(mask, mask, element, Point(-1, -1), dilation_iterations);
-	//imshow("Final mask", mask);
-	
-	// char filename [25];
-	// sprintf(filename, "img_mask_%s.png", name.c_str());
-	// imwrite(filename, mask);
 	
 	return;
 }
@@ -110,15 +105,19 @@ void do_mask(Mat hsv, Mat mask, int mid_hue, int delta, int crop, string name)
 void find_car(const Mat mask, Car &car)
 // This function locates a desired car in a given mask and determines its centroid.
 // The centroid is then stored in the car's associated structure.
-//
 // mask		binary image showing hues matching to car of interest
 // car		structure for car of interest
 {	
-	// Find contours
-	vector<vector<Point> > contours;		// vector for storing contours
-	findContours(mask, contours, RETR_LIST, CHAIN_APPROX_SIMPLE);	// note that contours is modified in this step
-	int n_contours = contours.size();	// number of contours
+	// Create mask that can be modified without affecting original
+	Mat mask_use = Mat::zeros(mask.rows, mask.cols, CV_8UC1);
+	mask.copyTo(mask_use);
 	
+	// Find contours
+	vector<vector<Point> > contours;								// vector for storing contours
+	findContours(mask_use, contours, RETR_LIST, CHAIN_APPROX_SIMPLE);	// note that contours is modified in this step
+	int n_contours = contours.size();								// number of contours
+	
+	// Return an error state if no contours, and hence no cars, are found
 	if (n_contours < 1)
 	{
 		car.position_new[0] = -1;
@@ -135,9 +134,9 @@ void find_car(const Mat mask, Car &car)
 	}
 	
 	// Check areas against known vehicle size and hence locate vehicles
-	int contour_idx;	// indices of contour that correspond to desired vehicle
+	int contour_idx;	// index of contour that correspond to desired vehicle
 	int idx = 0;		// counter
-	for (int i = 0; i < n_contours; i++)		// scan through contour areas
+	for (int i = 0; i < n_contours; i++)	// scan through contour areas
 	{
 		if (contour_areas[i] > car.size_min && contour_areas[i] < car.size_max) 	// compare area to low and high thresholds
 		{
@@ -146,26 +145,28 @@ void find_car(const Mat mask, Car &car)
 		}
 	}
 	
+	// Display a warning if more than one object fitting the size and colour requirements is found.
 	if (idx > 1)
 	{
 		cout<<"WARNING: more than one object resembling the "<< car.name <<" car was found."<<endl;
 		cout<<"Using the last object found for calculations. Check masks to verify this is correct."<<endl;
 	}
+	
+	// Return an error state if no contours match area requirements and hence no car is found
+	if (idx == 0)
+	{
+		car.position_new[0] = -1;
+		car.position_new[1] = -1;
+		car.area_new = -1;
+		return;
+	}
 
-	// Determine vehicle centroids
+	// Determine vehicle centroids, car position and object area
 	Moments mu;
 	mu = moments(contours[contour_idx], true);		// moment of car's contour		
-	
-	car.position_new[0] = 640 - mu.m10 / mu.m00;	// number of pixels along x-axis from origin
-	car.position_new[1] = 480 - mu.m01 / mu.m00;	// number of pixels along y-axis from origin
-	
+	car.position_new[0] = 640 - mu.m10 / mu.m00;	// x-position of car in pixels along x-axis from origin
+	car.position_new[1] = 480 - mu.m01 / mu.m00;	// y-position of car in pixels along y-axis from origin
 	car.area_new = contour_areas[contour_idx];
-	// cout<<"Car: "<< car.name <<endl;
-	// printf("  area (pixels):	%5.1f\n", contour_areas[contour_idx]);
-	// printf("  location (x, y):	(%4.1f, %4.1f)\n", car.position_new[0], car.position_new[1]);
-	
-	// Draw centroids on source image
-	//circle(src_ctrs, Point(car_data[1], car_data[2]), 3, Scalar(0, 0, 255), -1);
 	
 	return;
 }
@@ -175,13 +176,14 @@ void do_outputs(Car &car, double time_new, double time_old)
 // This function calculates the car's velocity based on two consecutive frames and
 // prints area, position and velocity outputs.
 {
-	if (car.area_new < 1) {
-		// Car not found in current frame
+	if (car.area_new < 0) {
+		// Car not found in current frame, set all values to -1.
 		cout<<"WARNING: "<< car.name <<" car not detected"<<endl;
-		// set all new values to zero? Make a "reset" function for this
+		car.velocity_new[0] = -1.;
+		car.velocity_new[1] = -1.;
 		return;
 	} else if (car.area_old < 1) {
-		// No old data, report zero velocity
+		// No old data (but current data is acceptable), report zero velocity
 		cout<<"WARNING: previous instant has no data ("<< car.name <<" car)"<<endl;
 		car.velocity_new[0] = 0.0;
 		car.velocity_new[1] = 0.0;
@@ -193,11 +195,31 @@ void do_outputs(Car &car, double time_new, double time_old)
 	
 	cout<<"Car: "<< car.name <<endl;
 	printf("  area:		%5.1f		pixels\n", car.area_new);
-	printf("  location:	(%4.1f, %4.1f)	pixels\n", car.position_new[0], car.position_new[1]);
-	printf("  velocity:	(%4.1f, %4.1f)	pixels/s\n", car.velocity_new[0], car.velocity_new[1]);
+	printf("  location:	(%4.1f, %4.1f)	mm\n", car.position_new[0], car.position_new[1]);
+	printf("  velocity:	(%4.1f, %4.1f)	mm/s\n", car.velocity_new[0], car.velocity_new[1]);
 	//printf("  orientation (degrees):	%i\n", car.orientation_new);
 }
 
+
+void do_logs(const Mat src, const vector<Mat> masks_all, const vector<Car> cars_all, int frame, int save_images)
+// Save desired log items. At present only has the capability to save images - the source image and optionally the masks as well.
+{
+	if (save_images > 0)		// save only the source image with centroids shown
+	{
+		char filename [50];
+		sprintf(filename, "%03i_centroids.png", frame);
+		imwrite(filename, src);
+		
+		if (save_images == 2)	// also save mask images
+		{
+			for (int i = 0; i < masks_all.size(); i++)
+			{
+				sprintf(filename, "%03i_mask_%s.png", frame, cars_all[i].name.c_str());
+				imwrite(filename, masks_all[i]);
+			}
+		}
+	}
+}
 
 void new_2_old(Car &car)
 // Update old variables with new data
@@ -209,10 +231,6 @@ void new_2_old(Car &car)
 	car.velocity_old[1] = car.velocity_new[1];
 	car.orientation_old = car.orientation_new;
 }
-
-
-
-
 
 
 

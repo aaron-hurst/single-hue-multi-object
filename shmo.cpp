@@ -43,10 +43,21 @@ int main(int argc,char **argv)
 	int save_images = atoi(argv[2]);	// specify 1 to save tracking images
 	int time_new, time_old;
 	
-	if (save_images == 1)
-		cout<<"Output images will be saved with vehicle centroids shown"<<endl;
-	else
-		cout<<"No images will be saved"<<endl;
+	if (save_images == 0) { cout<<"No images will be saved"<<endl; }	
+	
+	/// Camera setup
+	raspicam::RaspiCam_Cv Camera;
+	cam_setup(argc, argv, Camera);
+	if (!Camera.open())		// open camera
+	{
+        cerr<<"Error opening camera"<<endl;
+        return -1;
+    }
+	sleep(2);	// sleep required to wait for camera to "warm up"
+	
+	
+	
+	
 	
 	
 	Car car_1;
@@ -71,24 +82,25 @@ int main(int argc,char **argv)
 	cars_all.push_back(car_1);
 	cars_all.push_back(car_2);
 	
-	
-	
-	
 	int crop = 15;				// number of pixels to crop off each side (remove physical model border from analysis)
 	int origin[2] = {0, 0};		// pixel location coordinate system origin
 	float alpha = 1.9355;		// conversion factor between pixels and mm (i.e. length of each pixel in mm) averaged over whole frame
 	
 	
-	/// Camera setup
-	raspicam::RaspiCam_Cv Camera;
-	cam_set_up(argc, argv, Camera);
-	if (!Camera.open())	{
-        cerr<<"Error opening camera"<<endl;
-        return -1;
-    }
-	sleep(2);	// sleep required to wait for camera to "warm up"
 	
-		
+	// Grab a test image and allocate image Mats
+	Camera.grab();
+	Camera.retrieve(src);										// source image
+	Mat src_hsv = Mat::zeros(src.rows, src.cols, CV_8UC3);		// HSV version (only one copy, overwritten for each car)
+	// different mask for each car so that they are not overwritten and can be saved at end if desired
+	Mat mask_1 = Mat::zeros(src.rows, src.cols, CV_8UC1);
+	Mat mask_2 = Mat::zeros(src.rows, src.cols, CV_8UC1);
+	vector<Mat> masks_all;
+	masks_all.push_back(mask_1);
+	masks_all.push_back(mask_2);
+	
+	
+	
 	/// Run tracking
 	double time_start = cv::getTickCount();	
 	for (int ii = 0; ii < n_frames; ii++)
@@ -100,25 +112,18 @@ int main(int argc,char **argv)
 		Camera.grab();
 		Camera.retrieve(src);
 		time_new = cv::getTickCount();
-		//imshow("Source", src);
 		
 		/// Convert to HSV
-		Mat src_hsv = Mat::zeros(src.rows, src.cols, CV_8UC3);
 		cvtColor(src, src_hsv, COLOR_BGR2HSV);
 		
 		/// Generate masks of matching hues.
-		// Note: cars are red, but by doing a BGR2HSV conversion (rather than RGB2HSV) they appear blue
-		Mat mask_1 = Mat::zeros(src.rows, src.cols, CV_8UC1);
-		Mat mask_2 = Mat::zeros(src.rows, src.cols, CV_8UC1);		
-		do_mask(src_hsv, mask_1, cars_all[0].hue, cars_all[0].delta, crop, cars_all[0].name);
-		do_mask(src_hsv, mask_2, cars_all[1].hue, cars_all[1].delta, crop, cars_all[1].name);
+		// Note: cars are red, but by doing a BGR2HSV conversion (rather than RGB2HSV) they appear blue		
+		do_mask(src_hsv, masks_all[0], cars_all[0].hue, cars_all[0].delta, crop, cars_all[0].name);
+		do_mask(src_hsv, masks_all[1], cars_all[1].hue, cars_all[1].delta, crop, cars_all[1].name);
 		
 		/// Locate cars
-		Mat src_ctrs = Mat::zeros(src.rows, src.cols, CV_8UC3);		// duplicate source image for printing
-		src.copyTo(src_ctrs);
-		
-		find_car(mask_1, cars_all[0]);
-		find_car(mask_2, cars_all[1]);
+		find_car(masks_all[0], cars_all[0]);
+		find_car(masks_all[1], cars_all[1]);
 		
 		/// Conversion to mm
 		cars_all[0].px_to_mm(alpha, origin);
@@ -128,12 +133,12 @@ int main(int argc,char **argv)
 		do_outputs(cars_all[0], time_new, time_old);
 		do_outputs(cars_all[1], time_new, time_old);
 		
-		if (save_images == 1)
-		{
-			char filename [25];
-			sprintf(filename, "img_centroids_%03i.png", ii);
-			imwrite(filename, src_ctrs);
-		}
+		/// Save desired logs - images, data log files
+		do_logs(src, masks_all, cars_all, ii, save_images);	
+		
+		
+		
+		
 		
 		
 		
