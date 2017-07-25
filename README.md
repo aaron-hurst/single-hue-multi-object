@@ -20,8 +20,16 @@ This is achieved my locating matching hues in images of the area and analysing m
 
 **Compile** using the provided makefile. Note the linked directory - you might need to change this if working on a different device. In future (after I learn how to use it) the build process will be moved to CMake. This will hopefully check for the presence and version of the above dependencies.
 
-**Run** by specifying two command line arguments:
+**Run** by specifying two command line arguments, the number of frames to run for and the desired output mode:
 
-./shmo <number of frames to run for> <whether to save source images, 1 or 0>
+./shmo frames output_mode
 
-**Outputs** are printed to the console and also saved to a file output.json in the form of a JSON object.
+Available output modes are:
+* 0: console & JSON
+* 1: log file & JSON
+* 2: console, JSON and log file
+* 3: console, JSON and source + centroids images
+* 4: console, JSON, source + centroids images and mask images
+* 5: all - console, JSON, log file, source + centroids and masks
+
+JSON object is saved to a file called output.json. Log file is called data.log.

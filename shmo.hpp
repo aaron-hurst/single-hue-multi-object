@@ -4,6 +4,12 @@
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv/highgui.h"
 
+// RapidJSON
+#include "rapidjson/document.h"
+#include "rapidjson/writer.h"
+#include "rapidjson/stringbuffer.h"
+#include "rapidjson/filewritestream.h"
+
 // Definitions
 // Camera inputs:
 #define IMG_WIDTH			640
@@ -72,6 +78,27 @@ void cam_setup(int argc, char **argv, raspicam::RaspiCam_Cv &Camera)
 	return;
 }
 
+
+void state_out_mode (int output_mode)
+// Display the selected output mode to the user on the console
+{
+	if (output_mode == 0) {
+		cout<<"Output mode: console & JSON"<<endl;
+	} else if (output_mode == 1) {
+		cout<<"Output mode: log file & JSON"<<endl;
+	} else if (output_mode == 2) {
+		cout<<"Output mode: console, log file & JSON"<<endl;
+	} else if (output_mode == 3) {
+		cout<<"Output mode: console, source + centroids image & JSON"<<endl;
+	} else if (output_mode == 4) {
+		cout<<"Output mode: console, source + centroids image, masks & JSON"<<endl;
+	} else if (output_mode == 5) {
+		cout<<"Output mode: ALL (console, log file, source + centroids image, masks & JSON)"<<endl;
+	} else {
+		cout<<"ERROR: Invalid output mode. Using default: Mode 0: console + JSON."<<endl;
+	}
+	return;
+}
 
 void do_mask(Mat hsv, Mat mask, int mid_hue, int delta, int crop, string name)
 // This function derives a hue-based mask from a given HSV image
@@ -171,19 +198,16 @@ void find_car(const Mat mask, Car &car)
 }
 
 
-void do_outputs(Car &car, double time_new, double time_old)
+void do_velocity(Car &car, double time_new, double time_old)
 // This function calculates the car's velocity based on two consecutive frames and
 // prints area, position and velocity outputs.
 {
 	if (car.area_new < 0) {
 		// Car not found in current frame, set all values to -1.
-		cout<<"WARNING: "<< car.name <<" car not detected"<<endl;
 		car.velocity_new[0] = -1.;
 		car.velocity_new[1] = -1.;
-		return;
 	} else if (car.area_old < 1) {
 		// No old data (but current data is acceptable), report zero velocity
-		cout<<"WARNING: previous instant has no data ("<< car.name <<" car)"<<endl;
 		car.velocity_new[0] = 0.0;
 		car.velocity_new[1] = 0.0;
 	} else {
@@ -191,26 +215,64 @@ void do_outputs(Car &car, double time_new, double time_old)
 		car.velocity_new[0] = (car.position_new[0] - car.position_old[0])/time_inc;
 		car.velocity_new[1] = (car.position_new[1] - car.position_old[1])/time_inc;
 	}
-	
-	cout<<"Car: "<< car.name <<endl;
-	printf("  area:		%5.1f		pixels\n", car.area_new);
-	printf("  location:	(%5.1f, %5.1f)	mm\n", car.position_new[0], car.position_new[1]);
-	printf("  velocity:	(%5.1f, %5.1f)	mm/s\n", car.velocity_new[0], car.velocity_new[1]);
-	//printf("  orientation (degrees):	%i\n", car.orientation_new);
+	return;
 }
 
 
-void do_logs(const Mat src, const vector<Mat> masks_all, const vector<Car> cars_all, int frame, int save_images)
+void do_outputs(const Mat src, const vector<Mat> masks_all, const vector<Car> cars_all, int frame, int output_mode, double time_new, double time_start)
 // Save desired log items. At present only has the capability to save images - the source image and optionally the masks as well.
 {
-	if (save_images > 0)		// save only the source image with centroids shown
-	{
+	// Print console output
+	if (output_mode != 1) {	
+		cout << endl; // write a newline before each frame's outputs
+		cout<<"~~~~~~~~~~~~~~ FRAME "<< frame + 1 <<" ~~~~~~~~~~~~~~"<<endl;
+		
+		for (int i = 0; i < cars_all.size(); i++) {
+			if (cars_all[i].area_new < 0) {
+				// Car not found in current frame
+				cout<<"WARNING: "<< cars_all[i].name <<" car not detected"<<endl;
+				continue;
+			} else if (cars_all[i].area_old < 1) {
+				// No old data (but current data is acceptable)
+				cout<<"WARNING: previous instant has no data ("<< cars_all[i].name <<" car)"<<endl;
+			}	
+			cout<<"Car: "<< cars_all[i].name <<endl;
+			printf("  area:		%5.1f		pixels\n", cars_all[i].area_new);
+			printf("  location:	(%5.1f, %5.1f)	mm\n", cars_all[i].position_new[0], cars_all[i].position_new[1]);
+			printf("  velocity:	(%5.1f, %5.1f)	mm/s\n", cars_all[i].velocity_new[0], cars_all[i].velocity_new[1]);
+			//printf("  orientation (degrees):	%i\n", cars_all[i].orientation_new);
+		}
+	}
+	
+	// Save log file (data.log)
+	if (output_mode == 1 || output_mode == 2 || output_mode == 5) {
+		// Open file
+		FILE * log_file;
+		log_file = fopen("data.log","a");	// append mode
+		fprintf(log_file, "%7.3f  |", (time_new - time_start)/(cv::getTickFrequency()));	// time (since program start)
+		
+		// Add data for each car
+		for (int i = 0; i < cars_all.size(); i++) {
+			fprintf(log_file, "  %6.1f", cars_all[i].position_new[0]);
+			fprintf(log_file, "  %6.1f", cars_all[i].position_new[1]);
+			fprintf(log_file, "  %5.1f", cars_all[i].velocity_new[0]);
+			fprintf(log_file, "  %5.1f", cars_all[i].velocity_new[1]);
+			fprintf(log_file, "  %4.1f", cars_all[i].orientation_new);
+			fprintf(log_file, "  |");
+		}
+		fprintf(log_file, "\n");
+		fclose(log_file);
+	}
+	
+	// Save image outputs
+	if (output_mode > 2) {
+		// Source + centroids image
 		char filename [50];
 		sprintf(filename, "%03i_centroids.png", frame);
 		imwrite(filename, src);
 		
-		if (save_images == 2)	// also save mask images
-		{
+		if (output_mode > 3) {
+			// Mask images
 			for (int i = 0; i < masks_all.size(); i++)
 			{
 				sprintf(filename, "%03i_mask_%s.png", frame, cars_all[i].name.c_str());
@@ -218,6 +280,8 @@ void do_logs(const Mat src, const vector<Mat> masks_all, const vector<Car> cars_
 			}
 		}
 	}
+	
+	return;
 }
 
 void new_2_old(Car &car)

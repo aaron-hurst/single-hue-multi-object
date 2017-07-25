@@ -4,15 +4,13 @@
 #include <sstream>
 #include <ctime>
 #include <unistd.h>
-#include <math.h>		// for "round"
+#include <math.h>
 #include "shmo.hpp"
 
 #include "rapidjson/document.h"
 #include "rapidjson/writer.h"
 #include "rapidjson/stringbuffer.h"
 #include "rapidjson/filewritestream.h"
-
-#include <cstdio>	// for fopen?
 
 
 // OpenCV and camera interfacing libraries
@@ -27,21 +25,21 @@ using namespace cv;
 using namespace rapidjson;
 
 
-int main(int argc,char **argv)
-{
+int main(int argc,char **argv) {
 	Mat src;
 	int n_frames = atoi(argv[1]);		// specify number of frames to process
-	int save_images = atoi(argv[2]);	// specify 1 to save tracking images
 	double time_new, time_old;
 	
-	if (save_images == 0) {
-		cout<<"No images will be saved"<<endl;
+	/// Output Modes
+	int output_mode = atoi(argv[2]);	// specify 1 to save tracking images
+	state_out_mode(output_mode);
+	// Set up log file (data.log)
+	if (output_mode == 1 || output_mode == 2 || output_mode == 5) {
+		FILE * log_file;
+		log_file = fopen("data.log","w");	// clear output data log file
+		fprintf(log_file,"Data formatted as: Time | x  y  v_x  v_y  theta | ...\n\n");
+		fclose(log_file);
 	}
-	
-	FILE * log_file;
-	log_file = fopen("data.log","w");	// clear output data log file
-	fprintf(log_file,"Data formatted as: Time | x  y  v_x  v_y  theta | ...\n\n");
-	fclose(log_file);
 	
 	/// Camera setup
 	raspicam::RaspiCam_Cv Camera;
@@ -52,6 +50,10 @@ int main(int argc,char **argv)
         return -1;
     }
 	sleep(2);	// sleep required to wait for camera to "warm up"
+	// Grab a test image to allocate hsv Mat
+	Camera.grab();
+	Camera.retrieve(src);										// source image
+	Mat src_hsv = Mat::zeros(src.rows, src.cols, CV_8UC3);		// HSV version (only one copy, overwritten for each car)
 	
 	
 	
@@ -86,10 +88,6 @@ int main(int argc,char **argv)
 	
 	
 	
-	// Grab a test image and allocate image Mats
-	Camera.grab();
-	Camera.retrieve(src);										// source image
-	Mat src_hsv = Mat::zeros(src.rows, src.cols, CV_8UC3);		// HSV version (only one copy, overwritten for each car)
 	// different mask for each car so that they are not overwritten and can be saved at end if desired
 	Mat mask_1 = Mat::zeros(src.rows, src.cols, CV_8UC1);
 	Mat mask_2 = Mat::zeros(src.rows, src.cols, CV_8UC1);
@@ -103,9 +101,6 @@ int main(int argc,char **argv)
 	double time_start = cv::getTickCount();
 	
 	for (int ii = 0; ii < n_frames; ii++) {
-		cout << endl; // write a newline before each frame's outputs
-		cout<<"~~~~~~~~~~~ FRAME "<< ii + 1<<" ~~~~~~~~~~~"<<endl;
-		
 		/// Get image	
 		Camera.grab();
 		Camera.retrieve(src);
@@ -128,11 +123,11 @@ int main(int argc,char **argv)
 		cars_all[1].px_to_mm(alpha, origin);
 		
 		/// Calculate velocity, report outputs
-		do_outputs(cars_all[0], time_new, time_old);
-		do_outputs(cars_all[1], time_new, time_old);
+		do_velocity(cars_all[0], time_new, time_old);
+		do_velocity(cars_all[1], time_new, time_old);
 		
 		/// Save desired logs - images, data log files
-		do_logs(src, masks_all, cars_all, ii, save_images);	
+		do_outputs(src, masks_all, cars_all, ii, output_mode, time_new, time_start);	
 		
 		
 		
@@ -187,20 +182,20 @@ int main(int argc,char **argv)
 		
 		
 		/// Save output to a log file
-		FILE * log_file;
-		log_file = fopen("data.log","a");	// append mode
-		fprintf(log_file, "%7.3f  |", (time_new - time_start)/(cv::getTickFrequency()));	// time (since program start)
-		// Add data for each car
-		for (int jj = 0; jj < cars_all.size(); jj++) {
-			fprintf(log_file, "  %6.1f", cars_all[jj].position_new[0]);
-			fprintf(log_file, "  %6.1f", cars_all[jj].position_new[1]);
-			fprintf(log_file, "  %5.1f", cars_all[jj].velocity_new[0]);
-			fprintf(log_file, "  %5.1f", cars_all[jj].velocity_new[1]);
-			fprintf(log_file, "  %4.1f", cars_all[jj].orientation_new);
-			fprintf(log_file, "  |");
-		}
-		fprintf(log_file, "\n");
-		fclose(log_file);
+		// FILE * log_file;
+		// log_file = fopen("data.log","a");	// append mode
+		// fprintf(log_file, "%7.3f  |", (time_new - time_start)/(cv::getTickFrequency()));	// time (since program start)
+		//Add data for each car
+		// for (int jj = 0; jj < cars_all.size(); jj++) {
+			// fprintf(log_file, "  %6.1f", cars_all[jj].position_new[0]);
+			// fprintf(log_file, "  %6.1f", cars_all[jj].position_new[1]);
+			// fprintf(log_file, "  %5.1f", cars_all[jj].velocity_new[0]);
+			// fprintf(log_file, "  %5.1f", cars_all[jj].velocity_new[1]);
+			// fprintf(log_file, "  %4.1f", cars_all[jj].orientation_new);
+			// fprintf(log_file, "  |");
+		// }
+		// fprintf(log_file, "\n");
+		// fclose(log_file);
 
 		
 		// Update data
