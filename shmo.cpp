@@ -7,12 +7,6 @@
 #include <math.h>
 #include "shmo.hpp"
 
-#include "rapidjson/document.h"
-#include "rapidjson/writer.h"
-#include "rapidjson/stringbuffer.h"
-#include "rapidjson/filewritestream.h"
-
-
 // OpenCV and camera interfacing libraries
 #include "/home/pi/raspicam-0.1.6/src/raspicam_cv.h"
 #include "opencv2/imgproc/imgproc.hpp"
@@ -30,7 +24,7 @@ int main(int argc,char **argv) {
 	int n_frames = atoi(argv[1]);		// specify number of frames to process
 	double time_new, time_old;
 	
-	/// Output Modes
+	// Output Modes
 	int output_mode = atoi(argv[2]);	// specify 1 to save tracking images
 	state_out_mode(output_mode);
 	// Set up log file (data.log)
@@ -41,7 +35,7 @@ int main(int argc,char **argv) {
 		fclose(log_file);
 	}
 	
-	/// Camera setup
+	// Camera setup
 	raspicam::RaspiCam_Cv Camera;
 	cam_setup(argc, argv, Camera);
 	if (!Camera.open()) {
@@ -99,125 +93,52 @@ int main(int argc,char **argv) {
 	
 	/// Run tracking
 	double time_start = cv::getTickCount();
-	
 	for (int ii = 0; ii < n_frames; ii++) {
-		/// Get image	
+		// Get image	
 		Camera.grab();
 		Camera.retrieve(src);
 		time_new = cv::getTickCount();
 		
-		/// Convert to HSV
+		// Convert to HSV
 		cvtColor(src, src_hsv, COLOR_BGR2HSV);
 		
-		/// Generate masks of matching hues.
-		// Note: cars are red, but by doing a BGR2HSV conversion (rather than RGB2HSV) they appear blue		
-		do_mask(src_hsv, masks_all[0], cars_all[0].hue, cars_all[0].delta, crop, cars_all[0].name);
-		do_mask(src_hsv, masks_all[1], cars_all[1].hue, cars_all[1].delta, crop, cars_all[1].name);
-		
-		/// Locate cars
-		find_car(masks_all[0], cars_all[0]);
-		find_car(masks_all[1], cars_all[1]);
-		
-		/// Conversion to mm
-		cars_all[0].px_to_mm(alpha, origin);
-		cars_all[1].px_to_mm(alpha, origin);
-		
-		/// Calculate velocity, report outputs
-		do_velocity(cars_all[0], time_new, time_old);
-		do_velocity(cars_all[1], time_new, time_old);
-		
-		/// Save desired logs - images, data log files
-		do_outputs(src, masks_all, cars_all, ii, output_mode, time_new, time_start);	
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		// Declare RapidJSON document and define the document as an object rather than an array
-		rapidjson::Document document;
-		document.SetObject();
-		
-		// Get an "alloctor" - must pass an allocator when the object may need to allocate memory
-		rapidjson::Document::AllocatorType& allocator = document.GetAllocator();
-		
-		// Create a rapidjson array for storing data (this type has similar syntax to std::vector)
-		//rapidjson::Value data(rapidjson::kArrayType);
-		
-		// Iterate through each car, populating data and MAC address and sending this to the rapidjson document
-		for (int i = 0; i < cars_all.size(); i++) {
-			// Declare rapidjson array for storing data (this type has similar syntax to std::vector)
-			rapidjson::Value data(rapidjson::kArrayType);
+		for (int jj = 0; jj < cars_all.size(); jj++) {
+			// Generate masks of matching hues. (Note: cars are red, but by doing a BGR2HSV conversion (rather than RGB2HSV) they appear blue.)
+			do_mask(src_hsv, masks_all[jj], cars_all[jj].hue, cars_all[jj].delta, crop, cars_all[jj].name);
 			
-			// Populate data rapidjson array
-			data.PushBack(1, allocator);										// physical object type
-			data.PushBack((int)round(cars_all[i].position_new[0]), allocator);	// car position, x-component
-			data.PushBack((int)round(cars_all[i].position_new[1]), allocator);	// car position, y-component
-			data.PushBack((int)round(cars_all[i].velocity_new[0]), allocator);	// car velocity, x-component
-			data.PushBack((int)round(cars_all[i].velocity_new[1]), allocator);	// car velocity, y-component
-			data.PushBack((int)round(cars_all[i].orientation_new), allocator);				// car orientation
-			data.PushBack(0, allocator);										// spare
-			data.PushBack(0, allocator);										// spare
+			// Locate cars
+			find_car(masks_all[jj], cars_all[jj]);
 			
-			// Create MAC Address string
-			Value MAC_Address;
-			char buffer[13];
-			int len = sprintf(buffer, "%s", cars_all[i].mac_add.c_str());
-			MAC_Address.SetString(buffer, len, allocator);
+			// Conversion to mm
+			cars_all[jj].px_to_mm(alpha, origin);
 			
-			// Add information to rapidjson document (an object)
-			document.AddMember(MAC_Address, data, allocator);
+			// Calculate velocity
+			do_velocity(cars_all[jj], time_new, time_old);
+			
+			// Determine orientation
+			cars_all[jj].orientation_new = 0;
 		}
 		
-		// Write to output file
-		FILE* fp = fopen("output.json", "w");		// open in write mode
-		char writeBuffer[65536];
-		FileWriteStream os(fp, writeBuffer, sizeof(writeBuffer));
-		Writer<FileWriteStream> fwriter(os);
-		document.Accept(fwriter);
-		fclose(fp);
+		// Save desired logs - images, data log files
+		do_outputs(src, masks_all, cars_all, ii, output_mode, time_new, time_start);	
 		
+		// Update JSON object with new data
+		do_JSON(cars_all);
 		
-		/// Save output to a log file
-		// FILE * log_file;
-		// log_file = fopen("data.log","a");	// append mode
-		// fprintf(log_file, "%7.3f  |", (time_new - time_start)/(cv::getTickFrequency()));	// time (since program start)
-		//Add data for each car
-		// for (int jj = 0; jj < cars_all.size(); jj++) {
-			// fprintf(log_file, "  %6.1f", cars_all[jj].position_new[0]);
-			// fprintf(log_file, "  %6.1f", cars_all[jj].position_new[1]);
-			// fprintf(log_file, "  %5.1f", cars_all[jj].velocity_new[0]);
-			// fprintf(log_file, "  %5.1f", cars_all[jj].velocity_new[1]);
-			// fprintf(log_file, "  %4.1f", cars_all[jj].orientation_new);
-			// fprintf(log_file, "  |");
-		// }
-		// fprintf(log_file, "\n");
-		// fclose(log_file);
-
-		
-		// Update data
+		// Update "old" data values
 		time_old = time_new;
-		new_2_old(cars_all[0]);
-		new_2_old(cars_all[1]);
+		for (int jj = 0; jj < cars_all.size(); jj++) {
+			new_2_old(cars_all[jj]);
+		}
 	}
 	
 	double time_total = double ( cv::getTickCount() - time_start ) / double ( cv::getTickFrequency() ); // total time in seconds
-	
 	cout << endl;
 	cout << "Total time: " << time_total<<" seconds"<<endl;
 	cout << "Total frames: " << n_frames<<endl;
     cout << "Average processing speed: " << time_total/n_frames*1000 << " ms/frame (" << n_frames/time_total<< " fps)" << std::endl;
 	
-	
 	Camera.release();
 	
 	return 0;
 }
-
-
-
-
-
