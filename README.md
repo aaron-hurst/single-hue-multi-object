@@ -26,10 +26,10 @@ This is achieved my locating matching hues in images of the area and analysing m
 
 Available output modes are:
 * 0: console & JSON
-* 1: log file & JSON
-* 2: console, JSON and log file
+* 1: csv & JSON
+* 2: console, JSON and csv
 * 3: console, JSON and source + centroids images
 * 4: console, JSON, source + centroids images and mask images
-* 5: all - console, JSON, log file, source + centroids and masks
+* 5: all - console, JSON, csv, source + centroids and masks
 
-JSON object is saved to a file called output.json. Log file is called data.log.
+JSON object is saved to a file called output.json. The csv output is saved in a file called data.csv.

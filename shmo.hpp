@@ -85,15 +85,15 @@ void state_out_mode (int output_mode)
 	if (output_mode == 0) {
 		cout<<"Output mode: console & JSON"<<endl;
 	} else if (output_mode == 1) {
-		cout<<"Output mode: log file & JSON"<<endl;
+		cout<<"Output mode: csv & JSON"<<endl;
 	} else if (output_mode == 2) {
-		cout<<"Output mode: console, log file & JSON"<<endl;
+		cout<<"Output mode: console, csv & JSON"<<endl;
 	} else if (output_mode == 3) {
 		cout<<"Output mode: console, source + centroids image & JSON"<<endl;
 	} else if (output_mode == 4) {
 		cout<<"Output mode: console, source + centroids image, masks & JSON"<<endl;
 	} else if (output_mode == 5) {
-		cout<<"Output mode: ALL (console, log file, source + centroids image, masks & JSON)"<<endl;
+		cout<<"Output mode: ALL (console, csv, source + centroids image, masks & JSON)"<<endl;
 	} else {
 		cout<<"ERROR: Invalid output mode. Using default: Mode 0: console + JSON."<<endl;
 	}
@@ -128,7 +128,7 @@ void do_mask(Mat hsv, Mat mask, int mid_hue, int delta, int crop, string name)
 }
 
 
-void find_car(const Mat mask, Car &car)
+void find_car(Mat mask, Car &car)
 // This function locates a desired car in a given mask and determines its centroid.
 // The centroid is then stored in the car's associated structure.
 // mask		binary image showing hues matching to car of interest
@@ -203,9 +203,9 @@ void do_velocity(Car &car, double time_new, double time_old)
 // prints area, position and velocity outputs.
 {
 	if (car.area_new < 0) {
-		// Car not found in current frame, set all values to -1.
-		car.velocity_new[0] = -1.;
-		car.velocity_new[1] = -1.;
+		// Car not found in current frame, report zero velocity
+		car.velocity_new[0] = 0.0;
+		car.velocity_new[1] = 0.0;
 	} else if (car.area_old < 1) {
 		// No old data (but current data is acceptable), report zero velocity
 		car.velocity_new[0] = 0.0;
@@ -244,24 +244,24 @@ void do_outputs(const Mat src, const vector<Mat> masks_all, const vector<Car> ca
 		}
 	}
 	
-	// Save log file (data.log)
+	// Save csv file (data.csv)
 	if (output_mode == 1 || output_mode == 2 || output_mode == 5) {
 		// Open file
-		FILE * log_file;
-		log_file = fopen("data.log","a");	// append mode
-		fprintf(log_file, "%7.3f  |", (time_new - time_start)/(cv::getTickFrequency()));	// time (since program start)
+		FILE * log_csv;
+		log_csv = fopen("data.csv","a");	// append mode
+		fprintf(log_csv, "%7.3f,", (time_new - time_start)/(cv::getTickFrequency()));	// time (since program start)
 		
 		// Add data for each car
 		for (int i = 0; i < cars_all.size(); i++) {
-			fprintf(log_file, "  %6.1f", cars_all[i].position_new[0]);
-			fprintf(log_file, "  %6.1f", cars_all[i].position_new[1]);
-			fprintf(log_file, "  %5.1f", cars_all[i].velocity_new[0]);
-			fprintf(log_file, "  %5.1f", cars_all[i].velocity_new[1]);
-			fprintf(log_file, "  %i", cars_all[i].orientation_new);
-			fprintf(log_file, "  |");
+			fprintf(log_csv, "%6.1f,", cars_all[i].area_new);
+			fprintf(log_csv, "%6.1f,", cars_all[i].position_new[0]);
+			fprintf(log_csv, "%6.1f,", cars_all[i].position_new[1]);
+			fprintf(log_csv, "%6.1f,", cars_all[i].velocity_new[0]);
+			fprintf(log_csv, "%6.1f,", cars_all[i].velocity_new[1]);
+			fprintf(log_csv, "%i,", cars_all[i].orientation_new);
 		}
-		fprintf(log_file, "\n");
-		fclose(log_file);
+		fprintf(log_csv, "\n");
+		fclose(log_csv);
 	}
 	
 	// Save image outputs

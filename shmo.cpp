@@ -24,17 +24,6 @@ int main(int argc,char **argv) {
 	int n_frames = atoi(argv[1]);		// specify number of frames to process
 	double time_new, time_old;
 	
-	// Output Modes
-	int output_mode = atoi(argv[2]);	// specify 1 to save tracking images
-	state_out_mode(output_mode);
-	// Set up log file (data.log)
-	if (output_mode == 1 || output_mode == 2 || output_mode == 5) {
-		FILE * log_file;
-		log_file = fopen("data.log","w");	// clear output data log file
-		fprintf(log_file,"Data formatted as: Time | x  y  v_x  v_y  theta | ...\n\n");
-		fclose(log_file);
-	}
-	
 	// Camera setup
 	raspicam::RaspiCam_Cv Camera;
 	cam_setup(argc, argv, Camera);
@@ -48,7 +37,6 @@ int main(int argc,char **argv) {
 	Camera.grab();
 	Camera.retrieve(src);										// source image
 	Mat src_hsv = Mat::zeros(src.rows, src.cols, CV_8UC3);		// HSV version (only one copy, overwritten for each car)
-	
 	
 	
 	
@@ -88,6 +76,37 @@ int main(int argc,char **argv) {
 	vector<Mat> masks_all;
 	masks_all.push_back(mask_1);
 	masks_all.push_back(mask_2);
+	
+	
+	
+	
+	
+	
+	// Output Modes
+	int output_mode = atoi(argv[2]);	// specify 1 to save tracking images
+	state_out_mode(output_mode);
+	// Set up csv log file (data.csv)
+	if (output_mode == 1 || output_mode == 2 || output_mode == 5) {
+		FILE * log_csv;
+		log_csv = fopen("data.csv","w");	// clear output data log file
+		fprintf(log_csv,"time(s)");
+		for (int i = 0; i < cars_all.size(); i++) {
+			// Print one lot of headers for each car
+			fprintf(log_csv,",area,x,y,v_x,v_y,theta");
+		}
+		fprintf(log_csv,"\n");
+		fclose(log_csv);
+	}
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
 	
 	
 	
