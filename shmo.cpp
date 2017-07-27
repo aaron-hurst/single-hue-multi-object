@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <math.h>
 #include "shmo.hpp"
+#include "common.hpp"
 
 // OpenCV and camera interfacing libraries
 #include "/home/pi/raspicam-0.1.6/src/raspicam_cv.h"
@@ -147,7 +148,7 @@ int main(int argc,char **argv) {
 		// Update "old" data values
 		time_old = time_new;
 		for (int jj = 0; jj < cars_all.size(); jj++) {
-			new_2_old(cars_all[jj]);
+			cars_all[jj].new_to_old();
 		}
 	}
 	
