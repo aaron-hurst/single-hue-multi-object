@@ -50,12 +50,12 @@ struct Car {
 	int orientation_new;
 	
 	// Member function declarations
-	void px_to_mm(float alpha, const int origin[]);
+	void px_to_mm(float alpha, const float origin[]);
 	void new_to_old(void);
 };
 
 // Member function definitions
-void Car::px_to_mm(float alpha, const int origin[])
+void Car::px_to_mm(float alpha, const float origin[])
 // Convert position and velocity measurements from pixel values to mm from the coordinate system origin
 {
 	position_new[0] = alpha*(position_new[0] - origin[0]);
@@ -107,7 +107,7 @@ int state_output_mode (int output_mode)
 	} else if (output_mode == 3) {
 		cout<<"Output mode: csv and console (plus JSON)"<<endl;
 	} else if (output_mode == 4) {
-		cout<<"Output mode: debug - console, csv and relevant images (NO JSON - do not use eith controller)"<<endl;
+		cout<<"Output mode: debug - console, csv and relevant images (NO JSON - do not use this mode with controller)"<<endl;
 	} else {
 		cout<<"ERROR: Invalid output mode. Using default: Mode 1: console (plus JSON)."<<endl;
 		output_mode = 1;

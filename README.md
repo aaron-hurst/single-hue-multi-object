@@ -10,7 +10,7 @@ Object tracking algorithm for multiple single-hue objects
 **Students**: Aaron Hurst, Ray Barker & Ridge Shrubsall
 
 This software is designed to track one red and one orange ZenWheels car within the testbed for the above project.
-This is achieved my locating matching hues in images of the area and analysing masks obtained from this.
+This is achieved by locating matching hues in images of the area and analysing masks obtained from this.
 
 **Dependencies**:
 * OpenCV - tested using version 2.4.13.2 (http://opencv.org/releases.html)
@@ -30,4 +30,5 @@ Available output modes are:
 * 3: console & csv
 * 4: debug - console, csv and relevant images
 
-A JSON string/object with relevent car data is always sent to the master controller via a socket, except in debug mode. In this case the JSON string is only printed to the command line.
+A JSON string/object with relevant car data is always sent to the master controller via a socket, except in debug mode.
+In this case the JSON string is only printed to the command line.

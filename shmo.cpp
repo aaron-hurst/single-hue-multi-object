@@ -68,9 +68,9 @@ int main(int argc,char **argv)
 	cars_all.push_back(car_1);
 	cars_all.push_back(car_2);
 	
-	int crop = 15;				// number of pixels to crop off each side (remove physical model border from analysis)
-	int origin[2] = {0, 0};		// pixel location coordinate system origin
-	float alpha = 1.9355;		// conversion factor between pixels and mm (i.e. length of each pixel in mm) averaged over whole frame
+	int crop = 15;					// number of pixels to crop off each side (remove physical model border from analysis)
+	float origin[2] = {16.2, 5.0};	// pixel location coordinate system origin
+	float alpha = 1.9302;			// conversion factor between pixels and mm (i.e. length of each pixel in mm) averaged over whole frame
 	
 	
 	

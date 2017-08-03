@@ -101,8 +101,8 @@ void find_car(Mat mask, Car &car)
 	// Determine vehicle centroids, car position and object area
 	Moments mu;
 	mu = moments(contours[contour_idx], true);		// moment of car's contour		
-	car.position_new[0] = 640 - mu.m10 / mu.m00;	// x-position of car in pixels along x-axis from origin
-	car.position_new[1] = 480 - mu.m01 / mu.m00;	// y-position of car in pixels along y-axis from origin
+	car.position_new[0] = mu.m10 / mu.m00;	// x-position of car in pixels along x-axis from origin
+	car.position_new[1] = mu.m01 / mu.m00;	// y-position of car in pixels along y-axis from origin
 	car.area_new = contour_areas[contour_idx];
 	
 	return;
