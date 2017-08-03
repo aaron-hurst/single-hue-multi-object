@@ -1,40 +1,43 @@
-#include <iostream>
+// General includes
+#include <iostream>		// cout
 #include <cstdlib>
 #include <fstream>
 #include <sstream>
-#include <ctime>
-#include <unistd.h>
-#include <math.h>
-#include "shmo.hpp"
-#include "common.hpp"
+#include <unistd.h>		// sleep
 
-// OpenCV and camera interfacing libraries
-#include "/home/pi/raspicam-0.1.6/src/raspicam_cv.h"
+// Algorithm-specific includes
+#include "shmo.hpp"		// specific to this algorithm
+#include "common.hpp"	// common definitions
+
+// OpenCV and camera interfacing includes
+#include "/home/pi/raspicam-0.1.6/src/raspicam_cv.h"	// camera
 #include "opencv2/imgproc/imgproc.hpp"
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv/highgui.h"
 
+// Socket/comms related includes
+#include<sys/socket.h>	// socket
+#include<arpa/inet.h>	// inet_addr
+
 // Namespaces
 using namespace std;
 using namespace cv;
-using namespace rapidjson;
 
 
-int main(int argc,char **argv) {
-	Mat src;
-	int n_frames = atoi(argv[1]);		// specify number of frames to process
-	double time_new, time_old;
-	
+int main(int argc,char **argv)
+{
 	// Camera setup
 	raspicam::RaspiCam_Cv Camera;
-	cam_setup(argc, argv, Camera);
+	cam_setup(Camera);
 	if (!Camera.open()) {
 		// open camera
         cerr<<"Error opening camera"<<endl;
         return -1;
     }
 	sleep(2);	// sleep required to wait for camera to "warm up"
+	
 	// Grab a test image to allocate hsv Mat
+	Mat src;
 	Camera.grab();
 	Camera.retrieve(src);										// source image
 	Mat src_hsv = Mat::zeros(src.rows, src.cols, CV_8UC3);		// HSV version (only one copy, overwritten for each car)
@@ -45,7 +48,7 @@ int main(int argc,char **argv) {
 	
 	Car car_1;
 	car_1.name		= "red";
-	car_1.mac_add	= "ABCDEFGHIJK1";
+	car_1.mac_add	= "00:06:66:61:A3:48";
 	car_1.hue 		= 123;
 	car_1.delta 	= 4;
 	car_1.size_min	= 300;
@@ -54,7 +57,7 @@ int main(int argc,char **argv) {
 	
 	Car car_2;
 	car_2.name		= "orange";
-	car_2.mac_add	= "ABCDEFGHIJK2";
+	car_2.mac_add	= "00:06:66:61:A9:59";
 	car_2.hue 		= 115;
 	car_2.delta 	= 4;
 	car_2.size_min	= 300;
@@ -82,14 +85,13 @@ int main(int argc,char **argv) {
 	
 	
 	
-	
-	// Output Modes
+	// Output mode
 	int output_mode = atoi(argv[2]);	// specify 1 to save tracking images
-	state_out_mode(output_mode);
-	// Set up csv log file (data.csv)
-	if (output_mode == 1 || output_mode == 2 || output_mode == 5) {
+	output_mode = state_output_mode(output_mode);
+	if (output_mode > 1) {
+		// Set up csv log file (data.csv)
 		FILE * log_csv;
-		log_csv = fopen("data.csv","w");	// clear output data log file
+		log_csv = fopen("log.csv","w");	// clear output data log file
 		fprintf(log_csv,"time(s)");
 		for (int i = 0; i < cars_all.size(); i++) {
 			// Print one lot of headers for each car
@@ -99,28 +101,43 @@ int main(int argc,char **argv) {
 		fclose(log_csv);
 	}
 	
+	// Create socket
+	int sock;
+	sock = socket(AF_INET , SOCK_STREAM , 0);
+	if (sock == -1)
+	{
+		cout<< "Could not create socket" <<endl;
+	}
+	cout<< "Socket created" <<endl;
+	
+	// Set up server connection if not in debug mode
+	if (output_mode != 4) {
+		struct sockaddr_in server;
+		server.sin_addr.s_addr = inet_addr("127.0.0.1");
+		server.sin_family = AF_INET;
+		server.sin_port = htons(1520);
+	
+		// Connect to remote server
+		if (connect(sock , (struct sockaddr *)&server , sizeof(server)) < 0)
+		{
+			cout<< "Connect failed. Error" << endl;
+			return 1;
+		}
+		cout<< "Connected" << endl;
+	}
 	
 	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	/// Run tracking
+	// Run tracking
+	int n_frames = atoi(argv[1]);	// number of frames to process
+	double time_new, time_old;
 	double time_start = cv::getTickCount();
+	
 	for (int ii = 0; ii < n_frames; ii++) {
-		// Get image	
+		// Get HSV image	
 		Camera.grab();
+		time_new = cv::getTickCount();			// time image collected
 		Camera.retrieve(src);
-		time_new = cv::getTickCount();
-		
-		// Convert to HSV
-		cvtColor(src, src_hsv, COLOR_BGR2HSV);
+		cvtColor(src, src_hsv, COLOR_BGR2HSV);	// convert to HSV
 		
 		for (int jj = 0; jj < cars_all.size(); jj++) {
 			// Generate masks of matching hues. (Note: cars are red, but by doing a BGR2HSV conversion (rather than RGB2HSV) they appear blue.)
@@ -139,17 +156,24 @@ int main(int argc,char **argv) {
 			cars_all[jj].orientation_new = 0;
 		}
 		
-		// Save desired logs - images, data log files
-		do_outputs(src, masks_all, cars_all, ii, output_mode, time_new, time_start);	
-		
 		// Update JSON object with new data
-		do_JSON(cars_all);
+		do_json(cars_all, sock, output_mode);
+		
+		// Complete other outputs (console, csv and/or images)
+		if (output_mode == 4) {
+			do_debug(cars_all, src, masks_all, ii, output_mode, time_new, time_start);
+		} else {
+			do_outputs(cars_all, ii, output_mode, time_new, time_start);
+		}
 		
 		// Update "old" data values
 		time_old = time_new;
 		for (int jj = 0; jj < cars_all.size(); jj++) {
 			cars_all[jj].new_to_old();
 		}
+		
+		// Provide small delay to ensure comms can keep up
+		//usleep(100000);
 	}
 	
 	double time_total = double ( cv::getTickCount() - time_start ) / double ( cv::getTickFrequency() ); // total time in seconds

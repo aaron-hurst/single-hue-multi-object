@@ -1,4 +1,4 @@
-// OpenCV and camera interfacing libraries
+// OpenCV and camera interfacing includes
 #include "opencv2/imgproc/imgproc.hpp"
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv/highgui.h"
@@ -57,8 +57,8 @@ void find_car(Mat mask, Car &car)
 	// Return an error state if no contours, and hence no cars, are found
 	if (n_contours < 1)
 	{
-		car.position_new[0] = -1;
-		car.position_new[1] = -1;
+		car.position_new[0] = -1000;
+		car.position_new[1] = -1000;
 		car.area_new = -1;
 		return;
 	}
@@ -107,3 +107,27 @@ void find_car(Mat mask, Car &car)
 	
 	return;
 }
+
+
+void do_debug (const vector<Car> cars_all, const Mat src, const vector<Mat> masks_all, int frame, int output_mode, double time_new, double time_start)
+// Save image outputs in addition to all other outputs
+// Note that the debug mode is algorithm-specific, and therefore not in common.hpp
+{
+	// Call normal outputs function in mode 3 (console + csv)
+	do_outputs(cars_all, frame, output_mode, time_new, time_start);
+	
+	// Source + centroids image
+	// char filename [50];
+	// sprintf(filename, "%03i_centroids.png", frame);
+	// imwrite(filename, src);
+	
+	// Mask images
+	// for (int i = 0; i < masks_all.size(); i++)
+	// {
+		// sprintf(filename, "%03i_mask_%s.png", frame, cars_all[i].name.c_str());
+		// imwrite(filename, masks_all[i]);
+	// }
+	
+	return;
+}
+

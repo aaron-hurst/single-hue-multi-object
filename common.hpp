@@ -2,20 +2,19 @@
 #ifndef COMMON_H	// if common.h has not been included, include it, otherwise do not
 #define COMMON_H	// see end of file cor corresponding #endif
 
-// OpenCV and camera interfacing libraries
+// General includes
+#include<string.h>		// to_string
+
+// OpenCV and camera includes
 #include "/home/pi/raspicam-0.1.6/src/raspicam_cv.h"
 #include "opencv2/imgproc/imgproc.hpp"
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv/highgui.h"
 
-// RapidJSON
-#include "rapidjson/document.h"
-#include "rapidjson/writer.h"
-#include "rapidjson/stringbuffer.h"
-#include "rapidjson/filewritestream.h"
+// Socket/comms related includes
+#include<sys/socket.h>	// socket
 
-// Definitions
-// Camera inputs:
+// Camera definitions:
 #define IMG_WIDTH			640
 #define IMG_HEIGHT			480
 #define IMG_BRIGHTNESS		50
@@ -27,7 +26,6 @@
 // Namespaces
 using namespace std;
 using namespace cv;
-using namespace rapidjson;
 
 
 // Car object structure
@@ -81,7 +79,7 @@ void Car::new_to_old(void)
 
 
 
-void cam_setup(int argc, char **argv, raspicam::RaspiCam_Cv &Camera)
+void cam_setup(raspicam::RaspiCam_Cv &Camera)
 // Read desired image width if provided and perform camera set up operations
 {
 	// Set frame width and height, brightness (?), contrast, saturation and gain (ISO)
@@ -97,25 +95,24 @@ void cam_setup(int argc, char **argv, raspicam::RaspiCam_Cv &Camera)
 }
 
 
-void state_out_mode (int output_mode)
+int state_output_mode (int output_mode)
 // Display the selected output mode to the user on the console
 {
 	if (output_mode == 0) {
-		cout<<"Output mode: console & JSON"<<endl;
+		cout<<"Output mode: none (except JSON)"<<endl;
 	} else if (output_mode == 1) {
-		cout<<"Output mode: csv & JSON"<<endl;
+		cout<<"Output mode: console (plus JSON)"<<endl;
 	} else if (output_mode == 2) {
-		cout<<"Output mode: console, csv & JSON"<<endl;
+		cout<<"Output mode: csv log file (plus JSON)"<<endl;
 	} else if (output_mode == 3) {
-		cout<<"Output mode: console, source + centroids image & JSON"<<endl;
+		cout<<"Output mode: csv and console (plus JSON)"<<endl;
 	} else if (output_mode == 4) {
-		cout<<"Output mode: console, source + centroids image, masks & JSON"<<endl;
-	} else if (output_mode == 5) {
-		cout<<"Output mode: ALL (console, csv, source + centroids image, masks & JSON)"<<endl;
+		cout<<"Output mode: debug - console, csv and relevant images (NO JSON - do not use eith controller)"<<endl;
 	} else {
-		cout<<"ERROR: Invalid output mode. Using default: Mode 0: console + JSON."<<endl;
+		cout<<"ERROR: Invalid output mode. Using default: Mode 1: console (plus JSON)."<<endl;
+		output_mode = 1;
 	}
-	return;
+	return output_mode;
 }
 
 
@@ -140,11 +137,11 @@ void do_velocity(Car &car, double time_new, double time_old)
 }
 
 
-void do_outputs(const Mat src, const vector<Mat> masks_all, const vector<Car> cars_all, int frame, int output_mode, double time_new, double time_start)
+void do_outputs(const vector<Car> cars_all, int frame, int output_mode, double time_new, double time_start)
 // Save desired log items. At present only has the capability to save images - the source image and optionally the masks as well.
 {
-	// Print console output
-	if (output_mode != 1) {	
+	if (output_mode == 1 || output_mode > 2) {
+		// Print console output
 		cout << endl; // write a newline before each frame's outputs
 		cout<<"~~~~~~~~~~~~~~ FRAME "<< frame + 1 <<" ~~~~~~~~~~~~~~"<<endl;
 		
@@ -165,11 +162,11 @@ void do_outputs(const Mat src, const vector<Mat> masks_all, const vector<Car> ca
 		}
 	}
 	
-	// Save csv file (data.csv)
-	if (output_mode == 1 || output_mode == 2 || output_mode == 5) {
+	// Save csv file (log.csv)
+	if (output_mode > 1) {
 		// Open file
 		FILE * log_csv;
-		log_csv = fopen("data.csv","a");	// append mode
+		log_csv = fopen("log.csv","a");	// append mode
 		fprintf(log_csv, "%7.3f,", (time_new - time_start)/(cv::getTickFrequency()));	// time (since program start)
 		
 		// Add data for each car
@@ -185,69 +182,62 @@ void do_outputs(const Mat src, const vector<Mat> masks_all, const vector<Car> ca
 		fclose(log_csv);
 	}
 	
-	// Save image outputs
-	if (output_mode > 2) {
-		// Source + centroids image
-		char filename [50];
-		sprintf(filename, "%03i_centroids.png", frame);
-		imwrite(filename, src);
-		
-		if (output_mode > 3) {
-			// Mask images
-			for (int i = 0; i < masks_all.size(); i++)
-			{
-				sprintf(filename, "%03i_mask_%s.png", frame, cars_all[i].name.c_str());
-				imwrite(filename, masks_all[i]);
-			}
-		}
-	}
-	
 	return;
 }
 
 
-void do_JSON (vector<Car> cars_all)
+void do_json (vector<Car> cars_all, int sock, int output_mode)
 // This function performs the task of saving the most recent data to the JSON output file
 {
-	// Declare RapidJSON document and define the document as an object rather than an array
-	rapidjson::Document document;
-	document.SetObject();
-	
-	// Get an "alloctor" - must pass an allocator when the object may need to allocate memory
-	rapidjson::Document::AllocatorType& allocator = document.GetAllocator();
-	
-	// Iterate through each car, populating data and MAC address and sending this to the rapidjson document
+	// Create JSON string
+	string json = "{";
+	json.reserve(cars_all.size()*100);		// reserve memory for the json string (increases efficiency)
+	int not_first = 0;
 	for (int i = 0; i < cars_all.size(); i++) {
-		// Declare rapidjson array for storing data (this type has similar syntax to std::vector)
-		rapidjson::Value data(rapidjson::kArrayType);
-		
-		// Populate data
-		data.PushBack(1, allocator);										// physical object type
-		data.PushBack((int)round(cars_all[i].position_new[0]), allocator);	// car position, x-component
-		data.PushBack((int)round(cars_all[i].position_new[1]), allocator);	// car position, y-component
-		data.PushBack((int)round(cars_all[i].velocity_new[0]), allocator);	// car velocity, x-component
-		data.PushBack((int)round(cars_all[i].velocity_new[1]), allocator);	// car velocity, y-component
-		data.PushBack(cars_all[i].orientation_new, allocator);				// car orientation
-		data.PushBack(0, allocator);										// spare
-		data.PushBack(0, allocator);										// spare
-		
-		// Create MAC Address string
-		rapidjson::Value MAC_Address;
-		char buffer[13];
-		int len = sprintf(buffer, "%s", cars_all[i].mac_add.c_str());
-		MAC_Address.SetString(buffer, len, allocator);
-		
-		// Add information to rapidjson document (an object)
-		document.AddMember(MAC_Address, data, allocator);
+		// If car was found, append its data to the json string
+		if (cars_all[i].area_new > 0) {
+			if (not_first) {
+				// Pre-pend car data with a comma (the key:value delimiter) except for first car
+				json.append(",");
+			}
+			json.append("\"");					// leading quote for MAC address						
+			json.append(cars_all[i].mac_add);	// MAC address
+			json.append("\":[");				// end quote for MAC address, colon for key:value pairs, opening bracket for data array
+			json.append("1");					// object type: 1 for cars
+			json.append(",");
+			json.append(std::to_string((int)round(cars_all[i].position_new[0])));	// x-position
+			json.append(",");
+			json.append(std::to_string((int)round(cars_all[i].position_new[1])));	// y-position
+			json.append(",");
+			json.append(std::to_string((int)round(cars_all[i].velocity_new[0])));	// x-velocity
+			json.append(",");
+			json.append(std::to_string((int)round(cars_all[i].velocity_new[1])));	// y-velocity
+			json.append(",");
+			json.append(std::to_string((int)round(cars_all[i].orientation_new)));	// orientation
+			json.append(",");
+			json.append("0");		// spare
+			json.append(",");
+			json.append("0");		// spare
+			json.append("]");		// closing array bracket and key:value comma delimiter
+			
+			if (!not_first) {
+				// Set not_first to 1 for subsequent loops
+				not_first = 1;
+			}
+		}
 	}
+	json.append("}");
 	
-	// Write to output file
-	FILE* fp = fopen("output.json", "w");	// open in write mode (deletes previous contents)
-	char writeBuffer[65536];
-	FileWriteStream os(fp, writeBuffer, sizeof(writeBuffer));
-	Writer<FileWriteStream> fwriter(os);
-	document.Accept(fwriter);
-	fclose(fp);
+	if (output_mode == 4) {
+		// Debug mode - do not send output, do print JSON to console
+		cout<< json <<endl;
+	} else {
+		// Send JSON string to server via socket, do not print to console
+		if(send(sock, json.c_str(), json.size(), 0) < 0) {
+			cout<< "Send failed" <<endl;
+			return;
+		}
+	}
 	
 	return;
 }

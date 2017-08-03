@@ -5,8 +5,10 @@ times = M(:,1);
 
 for ii = 0:(n_cars - 1)
     % Plot trajectory
-    figure(ii + 1);
+    current_fig = figure(ii + 1);
+    set(current_fig,'Position',[100,100,1100,400]);
     clf;
+    subplot(1,2,1);
     x_position = M(:,(3 + ii*6));
     y_position = M(:,(4 + ii*6));
     plot(x_position, y_position, '-or',...
@@ -15,14 +17,16 @@ for ii = 0:(n_cars - 1)
     ylim([-50,950]);
     xlabel('x-coordinate (mm)');
     ylabel('y-coordinate (mm)');
+    title('Car position over time');
     
     % Graph speed
-    figure(ii + 3)
+    subplot(1,2,2);
     speeds = sqrt(M(:,(5 + ii*6)).^2 + M(:,(6 + ii*6)).^2);
     plot(times, speeds, '-ob',...
         'MarkerSize', 4);
     xlabel('time (s)');
     ylabel('speed (mm/s)');
+    title('Car speed');
     
     % Calculate statistics
     mean_area = mean(M(:,(2 + 6*ii)));
