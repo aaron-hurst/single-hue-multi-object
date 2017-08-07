@@ -1,0 +1,28 @@
+# Config file for Autonomous Vehicle Model
+# Any line beginning with "#" is treated as a comment and ignored
+
+# Global parameters
+crop 		= 15
+origin_x	= 16.2
+origin_y	= 5.0
+scale		= 1.9302
+
+Car 1
+name 		= red
+MAC_add		= 00:06:66:61:A3:48
+hue 		= 123
+delta 		= 4
+size_min 	= 300
+size_max	= 650
+Car 1 end
+
+Car 2
+name 		= orange
+MAC_add		= 00:06:66:61:A9:59
+hue 		= 115
+delta 		= 4
+size_min 	= 300
+size_max	= 650
+Car 2 end
+
+# Obstacle 1

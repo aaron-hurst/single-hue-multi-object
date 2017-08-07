@@ -43,34 +43,44 @@ int main(int argc,char **argv)
 	Mat src_hsv = Mat::zeros(src.rows, src.cols, CV_8UC3);		// HSV version (only one copy, overwritten for each car)
 	
 	
-	
-	
-	
-	Car car_1;
-	car_1.name		= "red";
-	car_1.mac_add	= "00:06:66:61:A3:48";
-	car_1.hue 		= 123;
-	car_1.delta 	= 4;
-	car_1.size_min	= 300;
-	car_1.size_max	= 650;
-	car_1.area_old  = 0.0;
-	
-	Car car_2;
-	car_2.name		= "orange";
-	car_2.mac_add	= "00:06:66:61:A9:59";
-	car_2.hue 		= 115;
-	car_2.delta 	= 4;
-	car_2.size_min	= 300;
-	car_2.size_max	= 650;
-	car_2.area_old  = 0.0;
-	
+	int crop;
+	int origin[2];
+	float scale;
 	vector<Car> cars_all;
-	cars_all.push_back(car_1);
-	cars_all.push_back(car_2);
 	
-	int crop = 15;					// number of pixels to crop off each side (remove physical model border from analysis)
-	float origin[2] = {16.2, 5.0};	// pixel location coordinate system origin
-	float alpha = 1.9302;			// conversion factor between pixels and mm (i.e. length of each pixel in mm) averaged over whole frame
+	do_config(cars_all, crop, origin, scale);
+	
+	cout<< "crop: " << crop << endl;
+	cout<< "origin: (" << origin[0] << ", " << origin[1] << ")" << endl;
+	cout<< "scale: " << scale <<endl;
+	
+	cout<< "car 1 name: " << cars_all[0].name <<endl;
+	
+	// Car car_1;
+	// car_1.name		= "red";
+	// car_1.mac_add	= "00:06:66:61:A3:48";
+	// car_1.hue 		= 123;
+	// car_1.delta 	= 4;
+	// car_1.size_min	= 300;
+	// car_1.size_max	= 650;
+	// car_1.area_old  = 0.0;
+	
+	// Car car_2;
+	// car_2.name		= "orange";
+	// car_2.mac_add	= "00:06:66:61:A9:59";
+	// car_2.hue 		= 115;
+	// car_2.delta 	= 4;
+	// car_2.size_min	= 300;
+	// car_2.size_max	= 650;
+	// car_2.area_old  = 0.0;
+	
+	// vector<Car> cars_all;
+	// cars_all.push_back(car_1);
+	// cars_all.push_back(car_2);
+	
+	// int crop = 15;					// number of pixels to crop off each side (remove physical model border from analysis)
+	// float origin[2] = {16.2, 5.0};	// pixel location coordinate system origin
+	// float scale = 1.9302;			// conversion factor between pixels and mm (i.e. length of each pixel in mm) averaged over whole frame
 	
 	
 	
@@ -147,7 +157,7 @@ int main(int argc,char **argv)
 			find_car(masks_all[jj], cars_all[jj]);
 			
 			// Conversion to mm
-			cars_all[jj].px_to_mm(alpha, origin);
+			cars_all[jj].px_to_mm(scale, origin);
 			
 			// Calculate velocity
 			do_velocity(cars_all[jj], time_new, time_old);

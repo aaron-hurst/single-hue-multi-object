@@ -50,18 +50,18 @@ struct Car {
 	int orientation_new;
 	
 	// Member function declarations
-	void px_to_mm(float alpha, const float origin[]);
+	void px_to_mm(float scale, const float origin[]);
 	void new_to_old(void);
 };
 
 // Member function definitions
-void Car::px_to_mm(float alpha, const float origin[])
+void Car::px_to_mm(float scale, const float origin[])
 // Convert position and velocity measurements from pixel values to mm from the coordinate system origin
 {
-	position_new[0] = alpha*(position_new[0] - origin[0]);
-	position_new[1] = alpha*(position_new[1] - origin[1]);
-	velocity_new[0] = alpha*velocity_new[0];
-	velocity_new[1] = alpha*velocity_new[1];
+	position_new[0] = scale*(position_new[0] - origin[0]);
+	position_new[1] = scale*(position_new[1] - origin[1]);
+	velocity_new[0] = scale*velocity_new[0];
+	velocity_new[1] = scale*velocity_new[1];
 	return;
 }
 
@@ -92,6 +92,80 @@ void cam_setup(raspicam::RaspiCam_Cv &Camera)
     Camera.set (CV_CAP_PROP_GAIN, IMG_GAIN);
 	Camera.set (CV_CAP_PROP_EXPOSURE, IMG_SHUTTER_SPEED);
 	return;
+}
+
+
+void do_config(vector<Car> cars_all, int &crop, float origin[], int &scale)
+// Configures algorithm data from config.txt file (which must be in the same directory as the main file)
+// Creates and populates Car and Obstacle structs
+// Reads and stores crop, origin and scale parameters
+{
+	// Open and check config file
+	ifstream f("config.txt");
+	if (!f) {
+		cout << "Error: could not load config file: config.txt" << endl;
+		return;
+	}
+	
+	string line;
+	Car car_dummy;
+	//Obstacle obst_dummy;
+	
+	while (getline(f, line)) {		// get the next line of the file
+		istringstream iss(line);	// send line to an istringstream
+		iss >> name >> tmp;			// extract information
+		
+		// Skip invalid lines and comments
+		if (iss.fail() || tmp != "=" || name[0] == '#') continue;
+		
+		// Global parameters
+		if (name == "crop")		iss >> crop;
+		if (name == "origin_x")	iss >> origin[0];
+		if (name == "origin_y")	iss >> origin[1];
+		if (name == "scale")	iss >> scale;
+		
+		// Cars
+		// If dealing with a car, enter a second while loop to populate a dummy struct which is then pushed to the cars_all vector
+		if (name == "Car") {
+			while (getline(f, line)) {
+				istringstream iss(line);
+				iss >> name >> tmp >> val;
+				
+				if (iss.fail() || tmp != "=" || name[0] == '#') continue;	// invalid lines
+				
+				if (name == "name")		val >> car_dummy.name;
+				if (name == "MAC_add")	val >> car_dummy.mac_add;
+				if (name == "hue")		val >> car_dummy.hue;
+				if (name == "delta")	val >> car_dummy.delta;
+				if (name == "size_min")	val >> car_dummy.size_min;
+				if (name == "size_max")	val >> car_dummy.size_max;
+				
+				if (val == "end") {					// signifies end of car config parameters
+					cars_all.push_back(car_dummy);	// store cnewly configured car in cars_all vector
+					break;							// exit car config while loop
+				}
+			}
+		}
+		
+		// Obstacles
+		// if (name == "Obstacles") {
+			// while (getline(f, line)) {
+				// istringstream iss(line);
+				// iss >> name >> tmp >> val;
+				
+				// if (iss.fail() || tmp != "=" || name[0] == '#') continue;	// invalid lines
+				
+				// if (name == "name")		val >> car_dummy.name;
+				// if (name == "MAC_add")	val >> car_dummy.mac_add;
+				// if (name == "hue")		val >> car_dummy.hue;
+				// if (name == "delta")	val >> car_dummy.delta;
+				// if (name == "size_min")	val >> car_dummy.size_min;
+				// if (name == "size_max")	val >> car_dummy.size_max;
+				
+				// if (val == "end")	break;	// signifies end of car config parameters
+			// }
+		// }
+	}
 }
 
 
