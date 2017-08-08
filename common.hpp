@@ -3,7 +3,9 @@
 #define COMMON_H	// see end of file cor corresponding #endif
 
 // General includes
-#include<string.h>		// to_string
+#include <string.h>		// to_string, string
+#include <sstream>		// istringstream
+#include <iostream>		// >> operator, cout
 
 // OpenCV and camera includes
 #include "/home/pi/raspicam-0.1.6/src/raspicam_cv.h"
@@ -49,6 +51,9 @@ struct Car {
 	int orientation_old;		// measured orientation
 	int orientation_new;
 	
+	// Default values
+	Car() : area_old(0) {}
+	
 	// Member function declarations
 	void px_to_mm(float scale, const float origin[]);
 	void new_to_old(void);
@@ -78,7 +83,6 @@ void Car::new_to_old(void)
 }
 
 
-
 void cam_setup(raspicam::RaspiCam_Cv &Camera)
 // Read desired image width if provided and perform camera set up operations
 {
@@ -95,7 +99,7 @@ void cam_setup(raspicam::RaspiCam_Cv &Camera)
 }
 
 
-void do_config(vector<Car> cars_all, int &crop, float origin[], int &scale)
+void do_config(vector<Car> &cars_all, int &crop, float origin[], float &scale)
 // Configures algorithm data from config.txt file (which must be in the same directory as the main file)
 // Creates and populates Car and Obstacle structs
 // Reads and stores crop, origin and scale parameters
@@ -107,7 +111,7 @@ void do_config(vector<Car> cars_all, int &crop, float origin[], int &scale)
 		return;
 	}
 	
-	string line;
+	string line, name, tmp, val;
 	Car car_dummy;
 	//Obstacle obst_dummy;
 	
@@ -129,16 +133,17 @@ void do_config(vector<Car> cars_all, int &crop, float origin[], int &scale)
 		if (name == "Car") {
 			while (getline(f, line)) {
 				istringstream iss(line);
+				
 				iss >> name >> tmp >> val;
 				
 				if (iss.fail() || tmp != "=" || name[0] == '#') continue;	// invalid lines
 				
-				if (name == "name")		val >> car_dummy.name;
-				if (name == "MAC_add")	val >> car_dummy.mac_add;
-				if (name == "hue")		val >> car_dummy.hue;
-				if (name == "delta")	val >> car_dummy.delta;
-				if (name == "size_min")	val >> car_dummy.size_min;
-				if (name == "size_max")	val >> car_dummy.size_max;
+				if (name == "name")		car_dummy.name = val;
+				if (name == "MAC_add")	car_dummy.mac_add = val;
+				if (name == "hue")		car_dummy.hue = stoi(val, nullptr);
+				if (name == "delta")	car_dummy.delta = stoi(val, nullptr);
+				if (name == "size_min")	car_dummy.size_min = stoi(val, nullptr);
+				if (name == "size_max")	car_dummy.size_max = stoi(val, nullptr);
 				
 				if (val == "end") {					// signifies end of car config parameters
 					cars_all.push_back(car_dummy);	// store cnewly configured car in cars_all vector
@@ -155,12 +160,7 @@ void do_config(vector<Car> cars_all, int &crop, float origin[], int &scale)
 				
 				// if (iss.fail() || tmp != "=" || name[0] == '#') continue;	// invalid lines
 				
-				// if (name == "name")		val >> car_dummy.name;
-				// if (name == "MAC_add")	val >> car_dummy.mac_add;
-				// if (name == "hue")		val >> car_dummy.hue;
-				// if (name == "delta")	val >> car_dummy.delta;
-				// if (name == "size_min")	val >> car_dummy.size_min;
-				// if (name == "size_max")	val >> car_dummy.size_max;
+				// TBC
 				
 				// if (val == "end")	break;	// signifies end of car config parameters
 			// }

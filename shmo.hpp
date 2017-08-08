@@ -5,7 +5,6 @@
 
 #include "common.hpp"
 
-
 // Namespaces
 using namespace std;
 using namespace cv;
