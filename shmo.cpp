@@ -23,9 +23,11 @@
 using namespace std;
 using namespace cv;
 
-
 int main(int argc,char **argv)
 {
+	int n_frames = atoi(argv[1]);		// number of frames to process
+	int output_mode = atoi(argv[2]);
+	
 	// Camera setup
 	raspicam::RaspiCam_Cv Camera;
 	cam_setup(Camera);
@@ -42,38 +44,26 @@ int main(int argc,char **argv)
 	Camera.retrieve(src);										// source image
 	Mat src_hsv = Mat::zeros(src.rows, src.cols, CV_8UC3);		// HSV version (only one copy, overwritten for each car)
 	
-	// Configure global parameters, Car structs and masks
+	// Configure global parameters and Car structs
 	int crop;
 	float origin[2];
 	float scale;
 	vector<Car> cars_all;
+	do_config(cars_all, crop, origin, scale);	// read config file
 	
-	do_config(cars_all, crop, origin, scale);
-	
+	// Configure vector for masks
 	vector<Mat> masks_all;
 	for (int i = 0; i < cars_all.size(); i++) {
 		Mat mask = Mat::zeros(src.rows, src.cols, CV_8UC1);
 		masks_all.push_back(mask);
 	}
 	
-	// different mask for each car so that they are not overwritten and can be saved at end if desired
-	// Mat mask_1 = Mat::zeros(src.rows, src.cols, CV_8UC1);
-	// Mat mask_2 = Mat::zeros(src.rows, src.cols, CV_8UC1);
-	// vector<Mat> masks_all;
-	// masks_all.push_back(mask_1);
-	// masks_all.push_back(mask_2);
-	
-	
-	
-	
-	
 	// Output mode
-	int output_mode = atoi(argv[2]);	// specify 1 to save tracking images
 	output_mode = state_output_mode(output_mode);
 	if (output_mode > 1) {
 		// Set up csv log file (data.csv)
 		FILE * log_csv;
-		log_csv = fopen("log.csv","w");	// clear output data log file
+		log_csv = fopen("log.csv","w");	// clear log file
 		fprintf(log_csv,"time(s)");
 		for (int i = 0; i < cars_all.size(); i++) {
 			// Print one lot of headers for each car
@@ -86,9 +76,9 @@ int main(int argc,char **argv)
 	// Create socket
 	int sock;
 	sock = socket(AF_INET , SOCK_STREAM , 0);
-	if (sock == -1)
-	{
+	if (sock == -1) {
 		cout<< "Could not create socket" <<endl;
+		return 1;
 	}
 	cout<< "Socket created" <<endl;
 	
@@ -100,20 +90,16 @@ int main(int argc,char **argv)
 		server.sin_port = htons(1520);
 	
 		// Connect to remote server
-		if (connect(sock , (struct sockaddr *)&server , sizeof(server)) < 0)
-		{
+		if (connect(sock , (struct sockaddr *)&server , sizeof(server)) < 0) {
 			cout<< "Connect failed. Error" << endl;
 			return 1;
 		}
 		cout<< "Connected" << endl;
 	}
 	
-	
 	// Run tracking
-	int n_frames = atoi(argv[1]);	// number of frames to process
 	double time_new, time_old;
 	double time_start = cv::getTickCount();
-	
 	for (int ii = 0; ii < n_frames; ii++) {
 		// Get HSV image	
 		Camera.grab();
@@ -122,13 +108,13 @@ int main(int argc,char **argv)
 		cvtColor(src, src_hsv, COLOR_BGR2HSV);	// convert to HSV
 		
 		for (int jj = 0; jj < cars_all.size(); jj++) {
-			// Generate masks of matching hues. (Note: cars are red, but by doing a BGR2HSV conversion (rather than RGB2HSV) they appear blue.)
+			// Generate masks of matching hues
 			do_mask(src_hsv, masks_all[jj], cars_all[jj].hue, cars_all[jj].delta, crop, cars_all[jj].name);
 			
-			// Locate cars
+			// Detect cars
 			find_car(masks_all[jj], cars_all[jj]);
 			
-			// Conversion to mm
+			// Convert measurements to mm
 			cars_all[jj].px_to_mm(scale, origin);
 			
 			// Calculate velocity
@@ -138,10 +124,10 @@ int main(int argc,char **argv)
 			cars_all[jj].orientation_new = 0;
 		}
 		
-		// Update JSON object with new data
+		// Update JSON output with new data
 		do_json(cars_all, sock, output_mode);
 		
-		// Complete other outputs (console, csv and/or images)
+		// Other outputs (console, csv and/or images)
 		if (output_mode == 4) {
 			do_debug(cars_all, src, masks_all, ii, output_mode, time_new, time_start);
 		} else {
@@ -154,15 +140,15 @@ int main(int argc,char **argv)
 			cars_all[jj].new_to_old();
 		}
 		
-		// Provide small delay to ensure comms can keep up
+		// Small delay to ensure comms can keep up
 		//usleep(100000);
 	}
 	
 	double time_total = double ( cv::getTickCount() - time_start ) / double ( cv::getTickFrequency() ); // total time in seconds
 	cout << endl;
-	cout << "Total time: " << time_total<<" seconds"<<endl;
-	cout << "Total frames: " << n_frames<<endl;
-    cout << "Average processing speed: " << time_total/n_frames*1000 << " ms/frame (" << n_frames/time_total<< " fps)" << std::endl;
+	cout << "Total time: " << time_total <<" seconds"<<endl;
+	cout << "Total frames: " << n_frames <<endl;
+    cout << "Average processing speed: " << time_total/n_frames*1000 << " ms/frame (" << n_frames/time_total<< " fps)" <<endl;
 	
 	Camera.release();
 	

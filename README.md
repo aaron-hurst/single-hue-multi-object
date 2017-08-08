@@ -32,3 +32,5 @@ Available output modes are:
 
 A JSON string/object with relevant car data is always sent to the master controller via a socket, except in debug mode.
 In this case the JSON string is only printed to the command line.
+
+The configuration file (config.txt) must also be in the same directory as shmo.cpp. This contains global and car-related parameters.
