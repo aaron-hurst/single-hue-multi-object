@@ -6,6 +6,7 @@
 #include <string.h>		// to_string, string
 #include <sstream>		// istringstream
 #include <iostream>		// >> operator, cout
+#include <math.h>		// sqrt, atan2, pow
 
 // OpenCV and camera includes
 #include "/home/pi/raspicam-0.1.6/src/raspicam_cv.h"
@@ -57,6 +58,7 @@ struct Car {
 	// Member function declarations
 	void px_to_mm(float scale, const float origin[]);
 	void new_to_old(void);
+	float speed(void);
 };
 
 // Member function definitions
@@ -82,6 +84,12 @@ void Car::new_to_old(void)
 	return;
 }
 
+float Car::speed(void)
+// Calculate speed of car
+{
+	return sqrt(pow(velocity_new[0], 2) + pow(velocity_new[1], 2));
+}
+
 
 void cam_setup(raspicam::RaspiCam_Cv &Camera)
 // Read desired image width if provided and perform camera set up operations
@@ -99,7 +107,7 @@ void cam_setup(raspicam::RaspiCam_Cv &Camera)
 }
 
 
-void do_config(vector<Car> &cars_all, int &crop, float origin[], float &scale)
+void do_config(vector<Car> &cars_all, int &crop, float origin[], float &scale, int &min_speed)
 // Configures algorithm data from config.txt file (which must be in the same directory as the main file)
 // Creates and populates Car and Obstacle structs
 // Reads and stores crop, origin and scale parameters
@@ -123,10 +131,11 @@ void do_config(vector<Car> &cars_all, int &crop, float origin[], float &scale)
 		if (iss.fail() || tmp != "=" || name[0] == '#') continue;
 		
 		// Global parameters
-		if (name == "crop")		iss >> crop;
-		if (name == "origin_x")	iss >> origin[0];
-		if (name == "origin_y")	iss >> origin[1];
-		if (name == "scale")	iss >> scale;
+		if (name == "crop")			iss >> crop;
+		if (name == "origin_x")		iss >> origin[0];
+		if (name == "origin_y")		iss >> origin[1];
+		if (name == "scale")		iss >> scale;
+		if (name == "min_speed")	iss >> min_speed;
 		
 		// Cars
 		// If dealing with a car, enter a second while loop to populate a dummy struct which is then pushed to the cars_all vector
@@ -232,7 +241,7 @@ void do_outputs(const vector<Car> cars_all, int frame, int output_mode, double t
 			printf("  area:		%5.1f		pixels\n", cars_all[i].area_new);
 			printf("  location:	(%5.1f, %5.1f)	mm\n", cars_all[i].position_new[0], cars_all[i].position_new[1]);
 			printf("  velocity:	(%5.1f, %5.1f)	mm/s\n", cars_all[i].velocity_new[0], cars_all[i].velocity_new[1]);
-			//printf("  orientation (degrees):	%i\n", cars_all[i].orientation_new);
+			printf("  orientation:	%i\n	degrees", cars_all[i].orientation_new);
 		}
 	}
 	

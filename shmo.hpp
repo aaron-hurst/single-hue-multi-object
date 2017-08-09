@@ -56,8 +56,8 @@ void find_car(Mat mask, Car &car)
 	// Return an error state if no contours, and hence no cars, are found
 	if (n_contours < 1)
 	{
-		car.position_new[0] = -1000;
-		car.position_new[1] = -1000;
+		car.position_new[0] = 0;
+		car.position_new[1] = 0;
 		car.area_new = -1;
 		return;
 	}
@@ -91,8 +91,8 @@ void find_car(Mat mask, Car &car)
 	// Return an error state if no contours match area requirements and hence no car is found
 	if (idx == 0)
 	{
-		car.position_new[0] = -1;
-		car.position_new[1] = -1;
+		car.position_new[0] = 0;
+		car.position_new[1] = 0;
 		car.area_new = -1;
 		return;
 	}

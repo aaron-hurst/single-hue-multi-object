@@ -6,6 +6,7 @@ crop 		= 15
 origin_x	= 16.2
 origin_y	= 5.0
 scale		= 1.9302
+min_speed	= 25
 
 Car = 1
 name 		= red
