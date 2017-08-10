@@ -125,11 +125,6 @@ int main(int argc,char **argv)
 			do_velocity(cars_all[jj], time_new, time_old);
 			
 			// Determine orientation
-			//cars_all[jj].orientation_new = 0;
-			
-			cout<< "speed: " << cars_all[jj].speed() <<endl;
-			cout<< "min speed: " << min_speed <<endl;
-			
 			if (cars_all[jj].speed() > min_speed) {
 				cars_all[jj].orientation_new = (int)(90 - 180/PI*atan2(cars_all[jj].velocity_new[1], cars_all[jj].velocity_new[0]));
 				if (cars_all[jj].orientation_new < 0) {
@@ -140,15 +135,15 @@ int main(int argc,char **argv)
 			}
 		}
 		
-		// Update JSON output with new data
-		do_json(cars_all, sock, output_mode);
-		
 		// Other outputs (console, csv and/or images)
 		if (output_mode == 4) {
 			do_debug(cars_all, src, masks_all, ii, output_mode, time_new, time_start);
 		} else {
 			do_outputs(cars_all, ii, output_mode, time_new, time_start);
 		}
+		
+		// Update JSON output with new data
+		do_json(cars_all, sock, output_mode, time_new);
 		
 		// Update "old" data values
 		time_old = time_new;
@@ -157,7 +152,7 @@ int main(int argc,char **argv)
 		}
 		
 		// Small delay to ensure comms can keep up
-		//usleep(100000);
+		usleep(150000);
 	}
 	
 	double time_total = double ( cv::getTickCount() - time_start ) / double ( cv::getTickFrequency() ); // total time in seconds

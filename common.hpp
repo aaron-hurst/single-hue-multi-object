@@ -241,7 +241,7 @@ void do_outputs(const vector<Car> cars_all, int frame, int output_mode, double t
 			printf("  area:		%5.1f		pixels\n", cars_all[i].area_new);
 			printf("  location:	(%5.1f, %5.1f)	mm\n", cars_all[i].position_new[0], cars_all[i].position_new[1]);
 			printf("  velocity:	(%5.1f, %5.1f)	mm/s\n", cars_all[i].velocity_new[0], cars_all[i].velocity_new[1]);
-			printf("  orientation:	%i\n	degrees", cars_all[i].orientation_new);
+			printf("  orientation:	%i		degrees\n", cars_all[i].orientation_new);
 		}
 	}
 	
@@ -250,7 +250,7 @@ void do_outputs(const vector<Car> cars_all, int frame, int output_mode, double t
 		// Open file
 		FILE * log_csv;
 		log_csv = fopen("log.csv","a");	// append mode
-		fprintf(log_csv, "%7.3f,", (time_new - time_start)/(cv::getTickFrequency()));	// time (since program start)
+		fprintf(log_csv, "%7.3f,", (time_new - time_start)/(cv::getTickFrequency()));	// time in seconds since program start
 		
 		// Add data for each car
 		for (int i = 0; i < cars_all.size(); i++) {
@@ -269,20 +269,27 @@ void do_outputs(const vector<Car> cars_all, int frame, int output_mode, double t
 }
 
 
-void do_json (vector<Car> cars_all, int sock, int output_mode)
+void do_json (vector<Car> cars_all, int sock, int output_mode, double time_new)
 // This function performs the task of saving the most recent data to the JSON output file
+// Note: the "append" method is used throughout because it has been shown to be one of the fastest string writing algorithms
 {
 	// Create JSON string
 	string json = "{";
+	
+	json.append("time:");
+	int time_now = (int) round(1000*time_new/(cv::getTickFrequency()));		// current system time in milliseconds
+	json.append(std::to_string(time_now));
+	json.append(",");
+	
 	json.reserve(cars_all.size()*100);		// reserve memory for the json string (increases efficiency)
-	int not_first = 0;
+	//int not_first = 0;						// begin at the "not not first" (i.e. first) car
 	for (int i = 0; i < cars_all.size(); i++) {
 		// If car was found, append its data to the json string
 		if (cars_all[i].area_new > 0) {
-			if (not_first) {
+			//if (not_first) {
 				// Pre-pend car data with a comma (the key:value delimiter) except for first car
-				json.append(",");
-			}
+				//json.append(",");
+			//}
 			json.append("\"");					// leading quote for MAC address						
 			json.append(cars_all[i].mac_add);	// MAC address
 			json.append("\":[");				// end quote for MAC address, colon for key:value pairs, opening bracket for data array
@@ -303,10 +310,10 @@ void do_json (vector<Car> cars_all, int sock, int output_mode)
 			json.append("0");		// spare
 			json.append("]");		// closing array bracket and key:value comma delimiter
 			
-			if (!not_first) {
+			//if (!not_first) {
 				// Set not_first to 1 for subsequent loops
-				not_first = 1;
-			}
+				//not_first = 1;
+			//}
 		}
 	}
 	json.append("}");

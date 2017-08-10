@@ -1,5 +1,7 @@
 M = csvread('log.csv',1,0);
-%M = csvread('log-example.csv',1,0);
+%M = csvread('log-example1.csv',1,0);
+%M = csvread('log-example2.csv',1,0);
+%M = csvread('log-good-working.csv',1,0);
 [n_frames, n_cars] = size(M);
 n_cars = (n_cars - 1)/6;
 times = M(:,1);
@@ -40,6 +42,9 @@ for ii = 0:(n_cars - 1)
     title('Car orientation');
     
     % Calculate statistics
+    n_lost = sum(M(:,(2 + 6*ii)) == -1);
+    percent_found = 100*(1 - n_lost/n_frames);
+    
     mean_area = mean(M(:,(2 + 6*ii)));
     mean_x = mean(M(:,(3 + 6*ii)));
     mean_y = mean(M(:,(4 + 6*ii)));
@@ -59,6 +64,8 @@ for ii = 0:(n_cars - 1)
     % Print output
     fprintf("\n");
     fprintf("Car %i statistics:\n", ii + 1);
+    fprintf("  Lost:     %5.1i  times\n", n_lost);
+    fprintf("  Found:    %5.1f      %% \n", percent_found);
     fprintf("  Area:     %5.1f  %5.1f\n", mean_area, sd_area);
     fprintf("  x:        %5.1f  %5.1f\n", mean_x, sd_x);
     fprintf("  y:        %5.1f  %5.1f\n", mean_y, sd_y);
@@ -66,6 +73,7 @@ for ii = 0:(n_cars - 1)
     fprintf("  v_y:      %5.1f  %5.1f\n", mean_vy, sd_vy);
     fprintf("  speed:    %5.1f  %5.1f\n", mean_speed, sd_speed);
     fprintf("  Orient.:  %5.1f  %5.1f\n", mean_th, sd_th);
+    
 end
 
 % Calculate speed
