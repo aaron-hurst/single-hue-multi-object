@@ -7,6 +7,7 @@
 #include <sstream>		// istringstream
 #include <iostream>		// >> operator, cout
 #include <math.h>		// sqrt, atan2, pow
+#include <sys/time.h>	// 
 
 // OpenCV and camera includes
 #include "/home/pi/raspicam-0.1.6/src/raspicam_cv.h"
@@ -33,23 +34,21 @@ using namespace cv;
 
 // Car object structure
 struct Car {
-	string name;				// car name, usually its colour
-	string mac_add;				// 12 character string for MAC Address
+	string name;			// car name, usually its colour
+	string mac_add;			// 12 character string for MAC Address
 	
 	// Physical characteristics
-	int hue;					// colour of car
-	int delta;					// half-width of car hue histogram
-	int size_min;				// minimum (pixel) area car may appear as
-	int size_max;				// maximum (pixel) area car may appear as
+	int hue;				// colour of car
+	int delta;				// half-width of car hue histogram
 	
 	// Measured parameters
-	float area_old;				// measured area
+	float area_old;			// measured area
 	float area_new;
-	float position_old[2];		// measures position
+	float position_old[2];	// measures position
 	float position_new[2];
-	float velocity_old[2];		// measured velocity
+	float velocity_old[2];	// measured velocity
 	float velocity_new[2];
-	int orientation_old;		// measured orientation
+	int orientation_old;	// measured orientation
 	int orientation_new;
 	
 	// Default values
@@ -58,8 +57,31 @@ struct Car {
 	// Member function declarations
 	void px_to_mm(float scale, const float origin[]);
 	void new_to_old(void);
-	float speed(void);
+	
+	// Calculate speed of car
+	float speed(void)  {
+		return sqrt(pow(velocity_new[0], 2) + pow(velocity_new[1], 2));
+	}
+	
+	// Car found in the current frame
+	bool found(void) {
+		if (area_new > 0)	return true;
+		return false;
+	}
+	
+	// Car not in current frame but was in previous frame
+	bool lost(void) {
+		if (area_new < 0 && area_old > 0)	return true;
+		return false;	
+	}
+	
+	// Car not in current or previous frame
+	bool missing(void) {
+		if (area_new < 0 && area_old < 0)	return true;
+		return false;
+	}
 };
+
 
 // Member function definitions
 void Car::px_to_mm(float scale, const float origin[])
@@ -84,11 +106,7 @@ void Car::new_to_old(void)
 	return;
 }
 
-float Car::speed(void)
-// Calculate speed of car
-{
-	return sqrt(pow(velocity_new[0], 2) + pow(velocity_new[1], 2));
-}
+
 
 
 void cam_setup(raspicam::RaspiCam_Cv &Camera)
@@ -107,7 +125,9 @@ void cam_setup(raspicam::RaspiCam_Cv &Camera)
 }
 
 
-void do_config(vector<Car> &cars_all, int &crop, float origin[], float &scale, int &min_speed)
+void do_config(vector<Car> &cars_all, int &crop, float origin[], float &scale, int &min_speed,
+	int &area_min, int &area_low, int &area_good, int &area_max,
+	int &car_length, int &min_sat, int &min_val)
 // Configures algorithm data from config.txt file (which must be in the same directory as the main file)
 // Creates and populates Car and Obstacle structs
 // Reads and stores crop, origin and scale parameters
@@ -136,6 +156,13 @@ void do_config(vector<Car> &cars_all, int &crop, float origin[], float &scale, i
 		if (name == "origin_y")		iss >> origin[1];
 		if (name == "scale")		iss >> scale;
 		if (name == "min_speed")	iss >> min_speed;
+		if (name == "area_min")		iss >> area_min;
+		if (name == "area_low")		iss >> area_low;
+		if (name == "area_good")	iss >> area_good;
+		if (name == "area_max")		iss >> area_max;
+		if (name == "car_length")	iss >> car_length;
+		if (name == "min_sat")		iss >> min_sat;
+		if (name == "min_val")		iss >> min_val;
 		
 		// Cars
 		// If dealing with a car, enter a second while loop to populate a dummy struct which is then pushed to the cars_all vector
@@ -151,8 +178,6 @@ void do_config(vector<Car> &cars_all, int &crop, float origin[], float &scale, i
 				if (name == "MAC_add")	car_dummy.mac_add = val;
 				if (name == "hue")		car_dummy.hue = stoi(val, nullptr);
 				if (name == "delta")	car_dummy.delta = stoi(val, nullptr);
-				if (name == "size_min")	car_dummy.size_min = stoi(val, nullptr);
-				if (name == "size_max")	car_dummy.size_max = stoi(val, nullptr);
 				
 				if (val == "end") {					// signifies end of car config parameters
 					cars_all.push_back(car_dummy);	// store cnewly configured car in cars_all vector
@@ -276,20 +301,21 @@ void do_json (vector<Car> cars_all, int sock, int output_mode, double time_new)
 	// Create JSON string
 	string json = "{";
 	
-	json.append("time:");
-	int time_now = (int) round(1000*time_new/(cv::getTickFrequency()));		// current system time in milliseconds
+	json.append("\"time\":");
+	struct timeval tp;
+	gettimeofday(&tp, NULL);
+	unsigned long long time_now = (unsigned long long)(tp.tv_sec) * 1000 + (unsigned long long)(tp.tv_usec) / 1000;
 	json.append(std::to_string(time_now));
-	json.append(",");
 	
 	json.reserve(cars_all.size()*100);		// reserve memory for the json string (increases efficiency)
-	//int not_first = 0;						// begin at the "not not first" (i.e. first) car
+	
 	for (int i = 0; i < cars_all.size(); i++) {
+		
 		// If car was found, append its data to the json string
 		if (cars_all[i].area_new > 0) {
-			//if (not_first) {
-				// Pre-pend car data with a comma (the key:value delimiter) except for first car
-				//json.append(",");
-			//}
+			
+			json.append(",");					// key:value comma delimiter
+			
 			json.append("\"");					// leading quote for MAC address						
 			json.append(cars_all[i].mac_add);	// MAC address
 			json.append("\":[");				// end quote for MAC address, colon for key:value pairs, opening bracket for data array
@@ -308,12 +334,7 @@ void do_json (vector<Car> cars_all, int sock, int output_mode, double time_new)
 			json.append("0");		// spare
 			json.append(",");
 			json.append("0");		// spare
-			json.append("]");		// closing array bracket and key:value comma delimiter
-			
-			//if (!not_first) {
-				// Set not_first to 1 for subsequent loops
-				//not_first = 1;
-			//}
+			json.append("]");		// closing array bracket
 		}
 	}
 	json.append("}");

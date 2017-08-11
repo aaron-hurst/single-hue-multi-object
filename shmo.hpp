@@ -10,7 +10,7 @@ using namespace std;
 using namespace cv;
 
 
-void do_mask(Mat hsv, Mat mask, int mid_hue, int delta, int crop, string name)
+void do_mask(Mat hsv, Mat mask, int mid_hue, int delta, int crop, string name, int min_sat, int min_val)
 // This function derives a hue-based mask from a given HSV image
 // hsv and mask must have the same dimensions
 // mid_hue 	is the middle (expected peak) hue value associated with the desired object
@@ -19,7 +19,7 @@ void do_mask(Mat hsv, Mat mask, int mid_hue, int delta, int crop, string name)
 // name		chosen identifier for each car
 {
 	// Initial hue matching operation
-	inRange(hsv, Scalar(mid_hue - delta, 40, 40), Scalar(mid_hue + delta, 255, 255), mask);
+	inRange(hsv, Scalar(mid_hue - delta, min_sat, min_val), Scalar(mid_hue + delta, 255, 255), mask);
 	
 	// Cropping mask
 	Mat mask_crop = Mat::zeros(hsv.rows, hsv.cols, CV_8UC1);	// declare mask used to eliminate table borders
@@ -38,7 +38,7 @@ void do_mask(Mat hsv, Mat mask, int mid_hue, int delta, int crop, string name)
 }
 
 
-void find_car(Mat mask, Car &car)
+void find_car(Mat mask, Car &car, int area_min, int area_max)
 // This function locates a desired car in a given mask and determines its centroid.
 // The centroid is then stored in the car's associated structure.
 // mask		binary image showing hues matching to car of interest
@@ -74,7 +74,7 @@ void find_car(Mat mask, Car &car)
 	int idx = 0;		// counter
 	for (int i = 0; i < n_contours; i++)	// scan through contour areas
 	{
-		if (contour_areas[i] > car.size_min && contour_areas[i] < car.size_max) 	// compare area to low and high thresholds
+		if (contour_areas[i] > area_min && contour_areas[i] < area_max) 	// compare area to low and high thresholds
 		{
 			contour_idx = i;	// if area within thresholds, record contour index
 			idx++;				// increment index - used later to check only one car was found
@@ -129,4 +129,3 @@ void do_debug (const vector<Car> cars_all, const Mat src, const vector<Mat> mask
 	
 	return;
 }
-

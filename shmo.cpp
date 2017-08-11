@@ -52,8 +52,11 @@ int main(int argc,char **argv)
 	float origin[2];
 	float scale;
 	int min_speed;
+	int area_min, area_low, area_good, area_max, car_length, min_sat, min_val;
 	vector<Car> cars_all;
-	do_config(cars_all, crop, origin, scale, min_speed);	// read config file
+	do_config(cars_all, crop, origin, scale, min_speed,
+		area_min, area_low, area_good, area_max,
+		car_length, min_sat, min_val);	// read config file
 	
 	// Configure vector for masks
 	vector<Mat> masks_all;
@@ -102,8 +105,12 @@ int main(int argc,char **argv)
 	}
 	
 	// Run tracking
-	double time_new, time_old;
+	Mat local_mask = Mat::zeros(src.rows, src.cols, CV_8UC1);
+	Point bl, tr;
+	float p_position[2];
+	double time_new, time_old, time_inc;
 	double time_start = cv::getTickCount();
+	
 	for (int ii = 0; ii < n_frames; ii++) {
 		// Get HSV image	
 		Camera.grab();
@@ -113,16 +120,118 @@ int main(int argc,char **argv)
 		
 		for (int jj = 0; jj < cars_all.size(); jj++) {
 			// Generate masks of matching hues
-			do_mask(src_hsv, masks_all[jj], cars_all[jj].hue, cars_all[jj].delta, crop, cars_all[jj].name);
+			do_mask(src_hsv, masks_all[jj], cars_all[jj].hue, cars_all[jj].delta, crop, cars_all[jj].name, min_sat, min_val);
 			
 			// Detect cars
-			find_car(masks_all[jj], cars_all[jj]);
+			find_car(masks_all[jj], cars_all[jj], area_min, area_max);
 			
-			// Convert measurements to mm
-			cars_all[jj].px_to_mm(scale, origin);
+			
+			
+			
+			
+			
+			
+			// Adaptive hue update
+			if (cars_all[jj].area_new < area_low && cars_all[jj].found()) {
+				// Car found and is low area threshold => generate mask around known location
+				
+				// Rectangle around known car location
+				bl.x = cars_all[jj].position_new[0] - car_length/2;
+				bl.y = cars_all[jj].position_new[1] - car_length/2;
+				tr.x = cars_all[jj].position_new[0] + car_length/2;
+				tr.y = cars_all[jj].position_new[1] + car_length/2;
+				rectangle(local_mask, bl, tr, 255, CV_FILLED);
+				
+				
+				
+				// ALL OF THE BELOW CODE needs to be executed in either case of the above if/else if statement.
+				// How to do this? Make it into another function and call it from within the if statements?
+				// Note that the if statements themselves will be in another function eventually (so I will be calling a function from a function... that's not a problem)
+				
+				// Global "significant hue" mask
+				Mat global_mask = Mat::zeros(src.rows, src.cols, CV_8UC1);
+				inRange(src_hsv, Scalar(0, min_sat, min_val), Scalar(180, 255, 255), global_mask);
+				
+				// Combine masks
+				local_mask = local_mask & global_mask;
+				
+				// Calculate histogram (use OpenCV function)
+				int max_hue = 180;
+				int hue_bins = max_hue;
+				int hist_size[] = {hue_bins, 1};
+				float bin_w = max_hue/hue_bins;
+				float hue_range[] = {0, (float)max_hue};
+				const float* range[] = {hue_range};
+				MatND hist;
+				int channel[] = {0};
+				calcHist(&src_hsv, 1, channel, local_mask, hist, 1, hist_size, range, true, false);
+				
+				// Get maximum histogram value
+				double max;
+				Point max_loc;
+				cv::minMaxLoc(hist, NULL, &max, NULL, &max_loc);
+				
+				int bin_val;
+				printf("\n");
+				for (int i = 0; i < hue_bins; i++)
+				{
+					bin_val = hist.at<float>(i,0);//*(hue_bins*scale)/max;
+					if (bin_val > max/10) {
+						printf("Hue: %4.1f	value: %3d\n", i*bin_w, bin_val);
+					}
+				}
+				printf("\n");
+				
+				
+				
+				
+			}
+			else if (cars_all[jj].lost()) {
+				// Car not found => generate mask around predicted location
+				
+				// Predict location
+				time_inc = double (time_new - time_old) / double (cv::getTickFrequency());
+				p_position[0] = cars_all[jj].position_old[0] + cars_all[jj].velocity_old[0]*time_inc;
+				p_position[1] = cars_all[jj].position_old[1] + cars_all[jj].velocity_old[1]*time_inc;
+				
+				// Rectangle around predicted car location
+				bl.x = p_position[0] - car_length/2;
+				bl.y = p_position[1] - car_length/2;
+				tr.x = p_position[0] + car_length/2;
+				tr.y = p_position[1] + car_length/2;
+				rectangle(local_mask, bl, tr, 255, CV_FILLED);
+				
+			}
+			
+			
+			
+			//figure out best hue to use for tracking
+			//median of hues that are above 50% of the peak hue? (use median rather than average in case there is an outlier)
+			//only consider values within +/-20 or 30 of original value? (again, dealing with outliers)
+			
+			//select learning rate
+			// 0.2 if found
+			// 0.5 if not found? Or just keep it the same?
+			// put both in config filebuf
+			
+			// do learning
+			if (1)//hue histogram indicates a car is actually present
+			{
+				// car.hue = 0.2*hue_best + 0.8*car.hue
+			}
+			
+			
+			
+			
+			
+			
+			
 			
 			// Calculate velocity
 			do_velocity(cars_all[jj], time_new, time_old);
+			
+			// Convert measurements to mm
+			cars_all[jj].px_to_mm(scale, origin);
 			
 			// Determine orientation
 			if (cars_all[jj].speed() > min_speed) {
@@ -135,14 +244,14 @@ int main(int argc,char **argv)
 			}
 		}
 		
-		// Other outputs (console, csv and/or images)
+		// Do outputs
 		if (output_mode == 4) {
 			do_debug(cars_all, src, masks_all, ii, output_mode, time_new, time_start);
 		} else {
 			do_outputs(cars_all, ii, output_mode, time_new, time_start);
 		}
 		
-		// Update JSON output with new data
+		// Update JSON with new data
 		do_json(cars_all, sock, output_mode, time_new);
 		
 		// Update "old" data values

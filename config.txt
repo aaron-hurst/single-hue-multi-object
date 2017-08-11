@@ -7,14 +7,19 @@ origin_x	= 16.2
 origin_y	= 5.0
 scale		= 1.9302
 min_speed	= 25
+area_min 	= 300
+area_low	= 375
+area_good	= 425
+area_max	= 600
+car_length	= 35
+min_sat		= 40
+min_val		= 40
 
 Car = 1
 name 		= red
 MAC_add		= 00:06:66:61:A3:48
 hue 		= 123
 delta 		= 4
-size_min 	= 300
-size_max	= 650
 Car = end
 
 Car = 2
@@ -22,8 +27,6 @@ name 		= orange
 MAC_add		= 00:06:66:61:A9:59
 hue 		= 115
 delta 		= 4
-size_min 	= 300
-size_max	= 650
 Car = end
 
 # Obstacle 1
