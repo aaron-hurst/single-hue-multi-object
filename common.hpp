@@ -3,7 +3,7 @@
 #define COMMON_H	// see end of file cor corresponding #endif
 
 // General includes
-#include <string.h>		// to_string, string
+#include <string.h>		// to_string, string, stoi
 #include <sstream>		// istringstream
 #include <iostream>		// >> operator, cout
 #include <math.h>		// sqrt, atan2, pow
@@ -25,7 +25,7 @@
 #define IMG_CONTRAST		50
 #define IMG_SATURATION		50
 #define IMG_GAIN			50
-#define IMG_SHUTTER_SPEED	3.03	// corresponds to approximately 10 ms (1/100 sec shutter speed) which mitigates banding from flourescent light source
+#define IMG_SHUTTER_SPEED	2.25	// corresponds to approximately 10 ms (1/100 sec shutter speed) which mitigates banding from flourescent light source
 
 // Namespaces
 using namespace std;

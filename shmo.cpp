@@ -105,7 +105,8 @@ int main(int argc,char **argv)
 	}
 	
 	// Run tracking
-	Mat local_mask = Mat::zeros(src.rows, src.cols, CV_8UC1);
+	Mat local_mask;
+	int significant_hues[25];
 	Point bl, tr;
 	float p_position[2];
 	double time_new, time_old, time_inc;
@@ -140,6 +141,7 @@ int main(int argc,char **argv)
 				bl.y = cars_all[jj].position_new[1] - car_length/2;
 				tr.x = cars_all[jj].position_new[0] + car_length/2;
 				tr.y = cars_all[jj].position_new[1] + car_length/2;
+				local_mask = Mat::zeros(src.rows, src.cols, CV_8UC1);
 				rectangle(local_mask, bl, tr, 255, CV_FILLED);
 				
 				
@@ -152,8 +154,16 @@ int main(int argc,char **argv)
 				Mat global_mask = Mat::zeros(src.rows, src.cols, CV_8UC1);
 				inRange(src_hsv, Scalar(0, min_sat, min_val), Scalar(180, 255, 255), global_mask);
 				
+				
+				// imshow("local mask", local_mask);
+				// imshow("global mask", global_mask);
+				// waitKey(0);
+				
 				// Combine masks
 				local_mask = local_mask & global_mask;
+				
+				// imshow("mask", local_mask);
+				// waitKey(0);
 				
 				// Calculate histogram (use OpenCV function)
 				int max_hue = 180;
@@ -172,15 +182,42 @@ int main(int argc,char **argv)
 				cv::minMaxLoc(hist, NULL, &max, NULL, &max_loc);
 				
 				int bin_val;
-				printf("\n");
+				//printf("\n");
+				int idx = 0;
 				for (int i = 0; i < hue_bins; i++)
 				{
 					bin_val = hist.at<float>(i,0);//*(hue_bins*scale)/max;
-					if (bin_val > max/10) {
-						printf("Hue: %4.1f	value: %3d\n", i*bin_w, bin_val);
+					if (bin_val > max/2) {
+						//printf("Hue: %4.1f	value: %3d\n", i*bin_w, bin_val);
+						significant_hues[idx] = i;
+						idx++;
 					}
 				}
-				printf("\n");
+				
+				
+				
+				
+				
+				
+				//figure out best hue to use for tracking
+				//median of hues that are above 50% of the peak hue? (use median rather than average in case there is an outlier)
+				//only consider values within +/-10 of original value AND +/- 10 from 5 from measured peak? (again, dealing with outliers)
+				int best_idx = (int)round(idx/2);
+				float best_hue = significant_hues[idx];
+				
+				printf("best_hue: %f\n", best_hue);
+				
+				//select learning rate
+				// 0.2 if found
+				// 0.5 if not found? Or just keep it the same?
+				// put both in config filebuf
+				
+				// do learning
+				if (best_hue > cars_all[jj].hue - 15 && best_hue < cars_all[jj].hue + 15)//hue histogram indicates a car is actually present
+				{
+					// car.hue = 0.2*hue_best + 0.8*car.hue
+					cars_all[jj].hue = 0.2*best_hue + 0.8*cars_all[jj].hue;
+				}
 				
 				
 				
@@ -201,24 +238,89 @@ int main(int argc,char **argv)
 				tr.y = p_position[1] + car_length/2;
 				rectangle(local_mask, bl, tr, 255, CV_FILLED);
 				
+				
+				
+				// ALL OF THE BELOW CODE needs to be executed in either case of the above if/else if statement.
+				// How to do this? Make it into another function and call it from within the if statements?
+				// Note that the if statements themselves will be in another function eventually (so I will be calling a function from a function... that's not a problem)
+				
+				// Global "significant hue" mask
+				Mat global_mask = Mat::zeros(src.rows, src.cols, CV_8UC1);
+				inRange(src_hsv, Scalar(0, min_sat, min_val), Scalar(180, 255, 255), global_mask);
+				
+				
+				// imshow("local mask", local_mask);
+				// imshow("global mask", global_mask);
+				// waitKey(0);
+				
+				// Combine masks
+				local_mask = local_mask & global_mask;
+				
+				// imshow("mask", local_mask);
+				// waitKey(0);
+				
+				// Calculate histogram (use OpenCV function)
+				int max_hue = 180;
+				int hue_bins = max_hue;
+				int hist_size[] = {hue_bins, 1};
+				float bin_w = max_hue/hue_bins;
+				float hue_range[] = {0, (float)max_hue};
+				const float* range[] = {hue_range};
+				MatND hist;
+				int channel[] = {0};
+				calcHist(&src_hsv, 1, channel, local_mask, hist, 1, hist_size, range, true, false);
+				
+				// Get maximum histogram value
+				double max;
+				Point max_loc;
+				cv::minMaxLoc(hist, NULL, &max, NULL, &max_loc);
+				
+				int bin_val;
+				//printf("\n");
+				int idx = 0;
+				for (int i = 0; i < hue_bins; i++)
+				{
+					bin_val = hist.at<float>(i,0);//*(hue_bins*scale)/max;
+					if (bin_val > max/2) {
+						//printf("Hue: %4.1f	value: %3d\n", i*bin_w, bin_val);
+						significant_hues[idx] = i;
+						idx++;
+					}
+				}
+				
+				
+				
+				
+				
+				
+				//figure out best hue to use for tracking
+				//median of hues that are above 50% of the peak hue? (use median rather than average in case there is an outlier)
+				//only consider values within +/-10 of original value AND +/- 10 from 5 from measured peak? (again, dealing with outliers)
+				int best_idx = (int)round(idx/2);
+				float best_hue = significant_hues[idx];
+				
+				printf("best_hue: %f\n", best_hue);
+				
+				//select learning rate
+				// 0.2 if found
+				// 0.5 if not found? Or just keep it the same?
+				// put both in config filebuf
+				
+				// do learning
+				if (best_hue > cars_all[jj].hue - 15 && best_hue < cars_all[jj].hue + 15)//hue histogram indicates a car is actually present
+				{
+					// car.hue = 0.2*hue_best + 0.8*car.hue
+					cars_all[jj].hue = 0.2*best_hue + 0.8*cars_all[jj].hue;
+				}
+				
+				
+				
+				
 			}
 			
 			
 			
-			//figure out best hue to use for tracking
-			//median of hues that are above 50% of the peak hue? (use median rather than average in case there is an outlier)
-			//only consider values within +/-20 or 30 of original value? (again, dealing with outliers)
 			
-			//select learning rate
-			// 0.2 if found
-			// 0.5 if not found? Or just keep it the same?
-			// put both in config filebuf
-			
-			// do learning
-			if (1)//hue histogram indicates a car is actually present
-			{
-				// car.hue = 0.2*hue_best + 0.8*car.hue
-			}
 			
 			
 			
