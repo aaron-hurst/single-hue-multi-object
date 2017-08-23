@@ -29,7 +29,8 @@ using namespace cv;
 int main(int argc,char **argv)
 {
 	int n_frames = atoi(argv[1]);		// number of frames to process
-	int output_mode = atoi(argv[2]);
+	int output_mode = atoi(argv[2]);	// output mode
+	int delay = atoi(argv[3]);			// delay in milliseconds
 	
 	// Camera setup
 	raspicam::RaspiCam_Cv Camera;
@@ -152,7 +153,7 @@ int main(int argc,char **argv)
 		}
 		
 		// Small delay to ensure comms can keep up
-		usleep(150000);
+		usleep(delay*1000);
 	}
 	
 	double time_total = double ( cv::getTickCount() - time_start ) / double ( cv::getTickFrequency() ); // total time in seconds
