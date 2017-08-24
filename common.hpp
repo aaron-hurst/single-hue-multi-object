@@ -7,6 +7,7 @@
 #include <sstream>		// istringstream
 #include <iostream>		// >> operator, cout
 #include <math.h>		// sqrt, atan2, pow
+#include <sys/time.h>		// RB - python timing
 
 // OpenCV and camera includes
 #include "/home/pi/raspicam-0.1.6/src/raspicam_cv.h"
@@ -276,16 +277,26 @@ void do_json (vector<Car> cars_all, int sock, int output_mode, double time_new)
 	// Create JSON string
 	string json = "{";
 	
-	json.append("time:");
-	int time_now = (int) round(1000*time_new/(cv::getTickFrequency()));		// current system time in milliseconds
+	// RB - Add escaped quotes around time
+	json.append("\"time\":");
+	//int time_now = (int) round(1000*time_new/(cv::getTickFrequency()));		// current system time in milliseconds
+	
+	// RB trying a more python-compatible method to get time - unix time in milliseconds
+	struct timeval tp;
+	gettimeofday(&tp, NULL);
+	unsigned long long time_now = (unsigned long long)(tp.tv_sec) * 1000 + (unsigned long long)(tp.tv_usec) / 1000;
 	json.append(std::to_string(time_now));
-	json.append(",");
 	
 	json.reserve(cars_all.size()*100);		// reserve memory for the json string (increases efficiency)
 	//int not_first = 0;						// begin at the "not not first" (i.e. first) car
+
 	for (int i = 0; i < cars_all.size(); i++) {
+
 		// If car was found, append its data to the json string
 		if (cars_all[i].area_new > 0) {
+
+			json.append(",");
+
 			//if (not_first) {
 				// Pre-pend car data with a comma (the key:value delimiter) except for first car
 				//json.append(",");
